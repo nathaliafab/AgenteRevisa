@@ -8,6 +8,7 @@ from typing import Dict, List, TypedDict
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, StateGraph
+from utils import setup_logger
 
 
 __all__ = ["AgentState", "BaseCodeReviewAgent", "PromptTemplate"]
@@ -33,6 +34,7 @@ class BaseCodeReviewAgent(ABC):
     no_issue_markers: tuple[str, ...] = ()
 
     def __init__(self, model_name: str | None = None):
+        self.logger = setup_logger(self.__class__.__name__)
         config_model = os.getenv("REVIEW_MODEL", "gemini-3-flash-preview")
         self.actual_model = model_name or config_model
 
@@ -75,8 +77,10 @@ class BaseCodeReviewAgent(ABC):
         return f"Command finished with exit code {result.returncode}".strip()
 
     def _run_analysis_node(self, state: AgentState):
-        print(
-            f"\n[DEBUG] Executando nó: RUN {self.tool_display_name.upper()} (Iteração {state['iterations']})"
+        self.logger.info(
+            "Executando nó: RUN %s (Iteração %d)", 
+            self.tool_display_name.upper(), 
+            state['iterations']
         )
 
         current_code = state.get("current_code", state["original_code"])
@@ -89,7 +93,7 @@ class BaseCodeReviewAgent(ABC):
                 self._build_tool_command(java_file_path, temp_dir, state["tool_config"])
             )
 
-            print(f"[DEBUG] {self.tool_display_name} Output:\n{analysis_output}")
+            self.logger.debug("%s Output:\n%s", self.tool_display_name, analysis_output)
 
         return {
             "analysis_output": analysis_output.strip(),
@@ -99,14 +103,15 @@ class BaseCodeReviewAgent(ABC):
 
     def _select_config_node(self, state: AgentState):
         """Usa o LLM para selecionar a configuração correta da ferramenta."""
-        print(f"[DEBUG] Executando nó: SELECT {self.tool_display_name.upper()} CONFIG")
+        self.logger.info("Executando nó: SELECT %s CONFIG", self.tool_display_name.upper())
         
         config = self._determine_tool_config(state["pr_description"], state["contributing_md"])
         return {"tool_config": config}
 
     def _fix_code_node(self, state: AgentState):
-        print(
-            f"[DEBUG] Executando nó: FIX CODE - Acionando LLM para corrigir erros de {self.tool_display_name}..."
+        self.logger.info(
+            "Executando nó: FIX CODE - Acionando LLM para corrigir erros de %s...",
+            self.tool_display_name
         )
 
         prompt = self._build_fix_prompt()
@@ -134,7 +139,7 @@ class BaseCodeReviewAgent(ABC):
         return {"current_code": new_code, "fixes_history": new_history}
 
     def _generate_report_node(self, state: AgentState):
-        print("[DEBUG] Executando nó: GENERATE REPORT")
+        self.logger.info("Executando nó: GENERATE REPORT")
 
         report = f"### {self.tool_display_name} Evaluation Report\n\n"
         if not state["analysis_output"] or not self._analysis_has_findings(
@@ -158,18 +163,19 @@ class BaseCodeReviewAgent(ABC):
         return {"final_report": report}
 
     def _should_continue(self, state: AgentState):
-        print("[DEBUG] Avaliando transição (should_continue)...")
-
         has_findings = self._analysis_has_findings(state["analysis_output"])
 
-        if has_findings and state["iterations"] <= state["max_iterations"]:
-            print(
-                f"[DEBUG] Decisão: Continuar corrigindo (Fix Code). Iterações: {state['iterations']}/{state['max_iterations']}"
+        if has_findings and state["iterations"] < state["max_iterations"]:
+            self.logger.info(
+                "Decisão: Continuar corrigindo (Fix Code). Iterações: %d/%d",
+                state['iterations'],
+                state['max_iterations']
             )
             return "fix_code"
 
-        print(
-            f"[DEBUG] Decisão: Encerrar e gerar relatório (Generate Report). Achados={has_findings}"
+        self.logger.info(
+            "Decisão: Encerrar e gerar relatório (Generate Report). Achados=%s",
+            has_findings
         )
         return "generate_report"
 

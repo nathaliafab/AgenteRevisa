@@ -2,8 +2,10 @@ import argparse
 from agents.pmd_agent import PMDAgent
 from agents.checkstyle_agent import CheckStyleAgent
 from dotenv import load_dotenv
+from utils import setup_logger
 
 load_dotenv()  # Carrega as variáveis de ambiente do .env
+logger = setup_logger()
 
 
 def _build_agent(agent_name: str):
@@ -31,11 +33,11 @@ def main():
     agent = _build_agent(args.tool)
 
     MAX_ITER = 3
-    print(f"\n[DEBUG] Iniciando execução:")
-    print(f"        Agente: {agent.__class__.__name__}")
-    print(f"        Modelo: {agent.actual_model}")
-    print(f"        Ferramenta: {agent.tool_display_name}")
-    print(f"        Max Iterations: {MAX_ITER}\n")
+    logger.info("Iniciando execução do agente")
+    logger.info(f"Agente: %s", agent.__class__.__name__)
+    logger.info(f"Modelo: %s", agent.actual_model)
+    logger.info(f"Ferramenta: %s", agent.tool_display_name)
+    logger.info(f"Max Iterations: %d", MAX_ITER)
 
     resultado = agent.run(
         pr_description="Adicionar manipulação de usuários.",
