@@ -3,7 +3,7 @@ from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate  # type: ignore[import-not-found]
 
-from review_agent_base import BaseCodeReviewAgent
+from agents.review_agent_base import BaseCodeReviewAgent
 
 
 class CheckStyleAgent(BaseCodeReviewAgent):

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
 
-from review_agent_base import BaseCodeReviewAgent
+from agents.review_agent_base import BaseCodeReviewAgent
 
 
 class PMDAgent(BaseCodeReviewAgent):

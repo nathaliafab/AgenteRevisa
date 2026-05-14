@@ -1,6 +1,6 @@
 import argparse
-from pmd_agent import PMDAgent
-from checkstyle_agent import CheckStyleAgent
+from agents.pmd_agent import PMDAgent
+from agents.checkstyle_agent import CheckStyleAgent
 from dotenv import load_dotenv
 
 load_dotenv()  # Carrega as variáveis de ambiente do .env
