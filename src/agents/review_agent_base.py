@@ -32,10 +32,13 @@ class BaseCodeReviewAgent(ABC):
     default_tool_cmd = ""
     no_issue_markers: tuple[str, ...] = ()
 
-    def __init__(self, model_name: str = "gemini-3-flash-preview"):
+    def __init__(self, model_name: str | None = None):
+        config_model = os.getenv("REVIEW_MODEL", "gemini-3-flash-preview")
+        self.actual_model = model_name or config_model
+
         self.tool_cmd = os.getenv(self.tool_cmd_env_var, self.default_tool_cmd)
         self.llm = ChatGoogleGenerativeAI(
-            model=model_name, api_key=os.getenv("GOOGLE_API_KEY")
+            model=self.actual_model, api_key=os.getenv("GOOGLE_API_KEY")
         )
         self.app = self._build_graph()
         # self.app.get_graph().print_ascii() - tem que ter grandalf instalado pra printar o grafo

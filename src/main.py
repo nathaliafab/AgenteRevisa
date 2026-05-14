@@ -9,9 +9,9 @@ load_dotenv()  # Carrega as variáveis de ambiente do .env
 def _build_agent(agent_name: str):
     normalized = agent_name.strip().lower()
     if normalized == "pmd":
-        return PMDAgent(model_name="gemini-3-flash-preview")
+        return PMDAgent()
     if normalized == "checkstyle":
-        return CheckStyleAgent(model_name="gemini-2.5-flash")
+        return CheckStyleAgent()
 
     raise ValueError(
         f"Agente inválido: '{agent_name}'. Use 'pmd' ou 'checkstyle'."
