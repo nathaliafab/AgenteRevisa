@@ -30,6 +30,13 @@ def main():
     args = parser.parse_args()
     agent = _build_agent(args.tool)
 
+    MAX_ITER = 3
+    print(f"\n[DEBUG] Iniciando execução:")
+    print(f"        Agente: {agent.__class__.__name__}")
+    print(f"        Modelo: {agent.actual_model}")
+    print(f"        Ferramenta: {agent.tool_display_name}")
+    print(f"        Max Iterations: {MAX_ITER}\n")
+
     resultado = agent.run(
         pr_description="Adicionar manipulação de usuários.",
         contributing_md="Use 'CamelCase' e siga o Google Java Style.",
@@ -42,7 +49,7 @@ def main():
         }
     }
 }""",
-        max_iterations=3,
+        max_iterations=MAX_ITER,
     )
 
     print(resultado["final_report"])
