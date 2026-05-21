@@ -15,6 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!bin/**/lib/
 lib64/
 parts/
 sdist/
@@ -150,7 +151,7 @@ activemq-data/
 # Environments
 .env
 .envrc
-.venv
+*.venv
 env/
 venv/
 ENV/
