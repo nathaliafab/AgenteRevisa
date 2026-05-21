@@ -76,6 +76,12 @@ class BaseCodeReviewAgent(ABC):
 
         return f"Command finished with exit code {result.returncode}".strip()
 
+    def _log_analysis_output(self, analysis_output: str) -> None:
+        """Formata e imprime a saída da análise padronizada (Ciano e indentado)."""
+        indented_output = "\n".join(f"      | {line}" for line in analysis_output.splitlines())
+        colored_output = f"\033[96m{indented_output}\033[0m"
+        self.logger.info("Resultados da Análise do %s:\n%s", self.tool_display_name, colored_output)
+
     def _run_analysis_node(self, state: AgentState):
         self.logger.info(
             "Executando nó: RUN %s (Iteração %d)", 
@@ -93,7 +99,7 @@ class BaseCodeReviewAgent(ABC):
                 self._build_tool_command(java_file_path, temp_dir, state["tool_config"])
             )
 
-            self.logger.debug("%s Output:\n%s", self.tool_display_name, analysis_output)
+            self._log_analysis_output(analysis_output)
 
         return {
             "analysis_output": analysis_output.strip(),

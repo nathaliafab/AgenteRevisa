@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 from langchain_core.prompts import PromptTemplate
@@ -10,6 +11,20 @@ class PMDAgent(BaseCodeReviewAgent):
     tool_cmd_env_var = "PMD_CMD"
     default_tool_cmd = "bin/pmd-bin-7.24.0/bin/pmd"
     no_issue_markers = ("No problems found",)
+
+    def __init__(self, model_name: str | None = None):
+        super().__init__(model_name)
+        self._ensure_pmd_installed()
+
+    def _ensure_pmd_installed(self):
+        # A pasta em que o script baixa e extrai o ZIP
+        if not Path("bin/pmd-bin-7.24.0").exists():
+            self.logger.info("PMD não encontrado na pasta bin/. Executando script de download...")
+            script_path = Path("scripts/install_pmd.sh")
+            if script_path.exists():
+                subprocess.run([str(script_path)], check=True)
+            else:
+                self.logger.error("Script de instalação do PMD não encontrado em %s", script_path)
 
     def _build_tool_command(self, java_file_path: Path, temp_dir: str, tool_config: str) -> list[str]:
         return [

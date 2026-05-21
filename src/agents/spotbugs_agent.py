@@ -75,10 +75,7 @@ class SpotBugsAgent(BaseCodeReviewAgent):
                 cmd = self._build_tool_command(java_file_path, temp_dir, state.get("tool_config", ""))
                 analysis_output = self._run_command(cmd)
 
-            # Adicionando recuo (indentação) e cor (Ciano) para destacar no terminal
-            indented_output = "\n".join(f"      | {line}" for line in analysis_output.splitlines())
-            colored_output = f"\033[96m{indented_output}\033[0m"
-            self.logger.info("Resultados da Análise do %s:\n%s", self.tool_display_name, colored_output)
+            self._log_analysis_output(analysis_output)
 
         return {
             "analysis_output": analysis_output.strip(),
