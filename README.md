@@ -11,36 +11,40 @@ O sistema orquestra os seguintes analisadores (sub-agentes):
 
 ## Pré-requisitos
 
-- **Python 3.10+**
-- **Java JDK** instalado no sistema (necessário para que o Checkstyle rode e para o agente do SpotBugs invocar o comando `javac`).
+- **Docker**
+- **Docker Compose**
 - Uma chave de API válida do Google Gemini (ou de outra IA suportada pelo *LangChain*).
 
-## Instalação e Configuração
+## Configuração
 
-1. **Clone o repositório** e ative um ambiente virtual (recomendado):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
-   ```
-
-2. **Instale as dependências Python** do projeto de análise:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure as credenciais (Variáveis de Ambiente)**:
+1. **Configure as credenciais (Variáveis de Ambiente)**:
    Crie um arquivo `.env` na raiz do projeto copiando o modelo já existente:
    ```bash
    cp .env.example .env
    ```
    
-   Após a cópia, abra o arquivo `.env` e preencha com a sua `GOOGLE_API_KEY`. As demais chaves dos caminhos para execução já estarão configuradas nos valores padrão de sistema.
+   Após a cópia, abra o arquivo `.env` e preencha com a sua `GOOGLE_API_KEY`.
+   Se quiser, ajuste `REVIEW_MODEL` para o modelo desejado (ex: `gemini-3.1-flash-lite`).
 
-## 💻 Como Executar
+2. **Opcional (evitar permissões no volume)**:
+   Defina `LOCAL_UID` e `LOCAL_GID` no `.env` para usar o seu usuário dentro do container.
+   Em Linux/macOS, você pode descobrir com:
+   ```bash
+   id -u
+   id -g
+   ```
 
-O orquestrador principal é o script `src/main.py`. Ao ser executado, o agente fará uma análise profunda no código recebido (atualmente, um código de avaliação predefinido) e vai rodar as iterações da IA sobre ele até esgotar o limite configurado (padrão de 3 tentativas).
+## 🐋 Como Executar com Docker
 
-Para testar sub-ferramentas, utilize a tag `--tool`:
+O orquestrador principal é o script `src/main.py`. Ao subir o container, o comando de help roda automaticamente e em seguida um terminal interativo é aberto.
+
+Para iniciar:
+```bash
+docker compose build
+docker compose run --rm agente-revisa
+```
+
+Depois do help aparecer, execute as ferramentas com a tag `--tool`:
 
 ```bash
 # Executar a pipeline de revisão baseada na ferramenta PMD
@@ -49,6 +53,6 @@ python src/main.py --tool pmd
 # Executar a pipeline observando estritamente regras de sintaxe CheckStyle
 python src/main.py --tool checkstyle
 
-# Executar a pipeline com validação SpotBugs de Memory e Bytecode (Baixa CLI na hora) (Padrão)
+# Executar a pipeline com validação SpotBugs de Memory e Bytecode (Padrão)
 python src/main.py --tool spotbugs
 ```
