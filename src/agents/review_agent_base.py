@@ -158,12 +158,19 @@ class BaseCodeReviewAgent(ABC):
             report += (
                 f"Status: Análise {self.tool_display_name} finalizada com sucesso. Nenhum erro encontrado.\n"
             )
-        else:
+        elif state["iterations"] >= state["max_iterations"]:
             report += (
                 f"Status: Parcial. Atingiu max iterações ({state['max_iterations']}).\n"
             )
             report += (
                 f"Últimos achados observados:\n```text\n{state['analysis_output']}\n```\n"
+            )
+        else:
+            report += (
+                f"Status: Parcial. Erros remanescentes ignorados porque o LLM determinou que não podem ser resolvidos apenas mudando o código.\n"
+            )
+            report += (
+                f"Últimos achados ignorados:\n```text\n{state['analysis_output']}\n```\n"
             )
 
         report += (
@@ -196,18 +203,43 @@ class BaseCodeReviewAgent(ABC):
     def _should_continue(self, state: AgentState):
         has_findings = self._analysis_has_findings(state["analysis_output"])
 
-        if has_findings and state["iterations"] < state["max_iterations"]:
+        if not has_findings:
+            self.logger.info("Decisão: Encerrar e gerar relatório. Nenhum erro encontrado.")
+            return "generate_report"
+
+        if state["iterations"] >= state["max_iterations"]:
             self.logger.info(
-                "Decisão: Continuar corrigindo (Fix Code). Iterações: %d/%d",
+                "Decisão: Encerrar. Atingiu max iterações (%d).",
+                state['max_iterations']
+            )
+            return "generate_report"
+            
+        # Acionar LLM para julgar se os achados são corrigíveis via código
+        self.logger.info("Avaliando se os erros remanescentes podem ser resolvidos via código...")
+        prompt = PromptTemplate.from_template(
+            "You are an expert Java developer evaluating findings from a static analysis tool ({tool_name}).\n"
+            "Here is the analysis output:\n{analysis_output}\n\n"
+            "Considering the nature of these warnings/errors, can they be fixed by modifying the provided source code?\n"
+            "Some warnings might be false positives or issues that cannot be resolved via code edits (e.g., missing specific project-level configs, unavailable global suppressions, or CI/CD environment complaints).\n"
+            "Answer ONLY with YES if at least one finding can be fixed by altering the Java code.\n"
+            "Answer ONLY with NO if none of the findings can be fixed by modifying the Java code."
+        )
+        chain = prompt | self.llm
+        response = chain.invoke({
+            "tool_name": self.tool_display_name, 
+            "analysis_output": state["analysis_output"]
+        })
+        decision_text = self._collect_llm_content(response).strip().upper()
+
+        if "YES" in decision_text:
+            self.logger.info(
+                "Decisão: Continuar corrigindo (Fix Code). LLM avaliou que erros são corrigíveis. Iterações: %d/%d",
                 state['iterations'],
                 state['max_iterations']
             )
             return "fix_code"
 
-        self.logger.info(
-            "Decisão: Encerrar e gerar relatório (Generate Report). Achados=%s",
-            has_findings
-        )
+        self.logger.info("Decisão: Encerrar. LLM avaliou que os erros *NÃO* são corrigíveis mudando o código.")
         return "generate_report"
 
     def _build_graph(self):

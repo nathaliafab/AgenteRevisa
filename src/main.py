@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from agents.pmd_agent import PMDAgent
 from agents.checkstyle_agent import CheckStyleAgent
 from agents.spotbugs_agent import SpotBugsAgent
+from agents.orchestrator_agent import OrchestratorAgent
 from utils import setup_logger
 
 # Load environment variables from .env
@@ -66,6 +67,7 @@ AGENT_MAP = {
     "pmd": PMDAgent,
     "checkstyle": CheckStyleAgent,
     "spotbugs": SpotBugsAgent,
+    "all": OrchestratorAgent,
 }
 
 
@@ -75,9 +77,9 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument(
         "--tool",
-        choices=list(AGENT_MAP.keys()),
-        default="spotbugs",
-        help="Analysis tool to be used (default: spotbugs)",
+        choices=["all", "pmd", "checkstyle", "spotbugs"],
+        default="all",
+        help="Analysis tool to be used (default: all)",
     )
 
     parser.add_argument(
