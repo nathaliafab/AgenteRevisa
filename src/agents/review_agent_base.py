@@ -9,7 +9,7 @@ from typing import Dict, List, TypedDict
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, StateGraph
-from utils import setup_logger
+from utils import setup_logger, get_timestamped_output_path
 
 
 __all__ = ["AgentState", "BaseCodeReviewAgent", "PromptTemplate"]
@@ -194,10 +194,10 @@ class BaseCodeReviewAgent(ABC):
             self.logger.info("suppress_output=True; skipping writing per-agent output file for %s", self.tool_display_name)
             return {"final_report": report}
 
+        # Use timestamped filename to prevent overwriting
         output_dir = Path("output")
-        output_dir.mkdir(parents=True, exist_ok=True)
         output_name = f"{self.tool_display_name.lower().replace(' ', '_')}_output.md"
-        output_path = output_dir / output_name
+        output_path = get_timestamped_output_path(output_dir, output_name)
         output_content = (
             f"{report}\n\n### Final Code\n\n```java\n{state['current_code']}\n```\n"
         )

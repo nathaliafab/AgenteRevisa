@@ -1,11 +1,10 @@
 from typing import Dict, Any
 from pathlib import Path
-from datetime import datetime
 
 from agents.pmd_agent import PMDAgent
 from agents.checkstyle_agent import CheckStyleAgent
 from agents.spotbugs_agent import SpotBugsAgent
-from utils import setup_logger
+from utils import setup_logger, get_timestamped_output_path
 
 class OrchestratorAgent:
     def __init__(self):
@@ -60,20 +59,9 @@ class OrchestratorAgent:
                 final_report += f"\nNo changes made in cycle {cycle}. All agents are satisfied. Stopping.\n"
                 break
         
-        # Ensure output directory exists
+        # Ensure output directory exists and use timestamped filename
         output_dir = Path("output")
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        # Build timestamped filename and avoid overwriting existing files
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_name = f"orchestrator_output_{ts}.md"
-        output_path = output_dir / base_name
-
-        # If by chance a file with the same name exists, append a sequence number
-        seq = 1
-        while output_path.exists():
-            output_path = output_dir / f"orchestrator_output_{ts}_{seq}.md"
-            seq += 1
+        output_path = get_timestamped_output_path(output_dir, "orchestrator_output.md")
 
         output_content = f"{final_report}\n\n### Final Code\n\n```java\n{current_code}\n```\n"
         output_path.write_text(output_content, encoding="utf-8")
