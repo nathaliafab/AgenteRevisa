@@ -26,6 +26,7 @@ class AgentState(TypedDict):
     max_iterations: int
     final_report: str
     tool_config: str
+    suppress_output: bool
 
 
 class BaseCodeReviewAgent(ABC):
@@ -188,6 +189,11 @@ class BaseCodeReviewAgent(ABC):
                     f"```java\n{entry['new_code']}\n```\n"
                 )
 
+        # If running under an orchestrator, allow suppression of per-agent outputs
+        if state.get("suppress_output"):
+            self.logger.info("suppress_output=True; skipping writing per-agent output file for %s", self.tool_display_name)
+            return {"final_report": report}
+
         output_dir = Path("output")
         output_dir.mkdir(parents=True, exist_ok=True)
         output_name = f"{self.tool_display_name.lower().replace(' ', '_')}_output.md"
@@ -269,6 +275,7 @@ class BaseCodeReviewAgent(ABC):
         contributing_md: str,
         original_code: str,
         max_iterations: int = 3,
+        suppress_output: bool = False,
     ) -> AgentState:
         initial_state = AgentState(
             pr_description=pr_description,
@@ -281,6 +288,7 @@ class BaseCodeReviewAgent(ABC):
             max_iterations=max_iterations,
             final_report="",
             tool_config="",
+            suppress_output=suppress_output,
         )
         return self.app.invoke(initial_state)
 
