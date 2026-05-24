@@ -15,6 +15,12 @@ O sistema orquestra os seguintes analisadores (sub-agentes):
 - **Docker Compose**
 - Uma chave de API válida do Google Gemini (ou de outra IA suportada pelo *LangChain*).
 
+### Chave de API do Google Gemini
+
+Para conseguir uma chave válida da API do Google Gemini, basta acessar o link a abaixo, fazer o login na sua conta Google e clicar em `Criar chave de API`
+
+- [Google Gemini](https://aistudio.google.com/app/api-keys)
+
 ## Configuração
 
 1. **Configure as credenciais (Variáveis de Ambiente)**:
@@ -47,6 +53,10 @@ docker compose run --rm agente-revisa
 Depois do help aparecer, execute as ferramentas com a tag `--tool`:
 
 ```bash
+
+# Executar pipeline de revisão completo com todos os agentes
+python src/main.py
+
 # Executar a pipeline de revisão baseada na ferramenta PMD
 python src/main.py --tool pmd
 
