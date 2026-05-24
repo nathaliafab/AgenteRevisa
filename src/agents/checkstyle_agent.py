@@ -68,6 +68,8 @@ class CheckStyleAgent(BaseCodeReviewAgent):
             return False
 
         if any(marker in normalized_output for marker in self.no_issue_markers):
-            return bool(re.search(r"\b[1-9]\d*\s+errors?\b", normalized_output, re.I))
+            if re.search(r"\b[1-9]\d*\s+errors?\b", normalized_output, re.I):
+                return True
+            return "[WARN]" in normalized_output
 
         return bool(re.search(r":\d+:\d+:", normalized_output))

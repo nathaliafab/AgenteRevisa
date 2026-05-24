@@ -1,6 +1,7 @@
 import os
 import subprocess
 import tempfile
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, TypedDict
@@ -91,8 +92,11 @@ class BaseCodeReviewAgent(ABC):
 
         current_code = state.get("current_code", state["original_code"])
 
+        match = re.search(r"class\s+(\w+)\s*{", current_code)
+        class_name = match.group(1) if match else "PRCode"
+
         with tempfile.TemporaryDirectory() as temp_dir:
-            java_file_path = Path(temp_dir) / "PRCode.java"
+            java_file_path = Path(temp_dir) / f"{class_name}.java"
             java_file_path.write_text(current_code, encoding="utf-8")
 
             analysis_output = self._run_command(
@@ -165,6 +169,27 @@ class BaseCodeReviewAgent(ABC):
         report += (
             f"\nForam feitas {len(state['fixes_history'])} tentativas de correção no código.\n"
         )
+
+        if state["fixes_history"]:
+            report += "\n### Passos Intermediarios\n"
+            for entry in state["fixes_history"]:
+                report += (
+                    f"\n#### Iteracao {entry['iteration']}\n"
+                    "Achados:\n"
+                    f"```text\n{entry['analysis_output']}\n```\n"
+                    "Codigo Gerado:\n"
+                    f"```java\n{entry['new_code']}\n```\n"
+                )
+
+        output_dir = Path("output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_name = f"{self.tool_display_name.lower().replace(' ', '_')}_output.md"
+        output_path = output_dir / output_name
+        output_content = (
+            f"{report}\n\n### Final Code\n\n```java\n{state['current_code']}\n```\n"
+        )
+        output_path.write_text(output_content, encoding="utf-8")
+        self.logger.info("Arquivo de saida gerado em %s", output_path)
 
         return {"final_report": report}
 

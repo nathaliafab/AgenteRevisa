@@ -12,7 +12,7 @@ from agents.review_agent_base import BaseCodeReviewAgent, AgentState
 class SpotBugsAgent(BaseCodeReviewAgent):
     tool_display_name = "SpotBugs"
     tool_cmd_env_var = "SPOTBUGS_CMD"
-    default_tool_cmd = "bin/spotbugs/bin/spotbugs"
+    default_tool_cmd = "bin/spotbugs-4.8.6/bin/spotbugs"
     # Spotbugs imprime estatísticas quando limpo. Podemos ajustar de acordo com a saída real.
     no_issue_markers = ("Warnings generated: 0", "Total bugs: 0", "exit code 0")
 
@@ -21,7 +21,7 @@ class SpotBugsAgent(BaseCodeReviewAgent):
         self._ensure_spotbugs_installed()
 
     def _ensure_spotbugs_installed(self):
-        if not Path("bin/spotbugs").exists():
+        if not Path("bin/spotbugs-4.8.6").exists():
             self.logger.info("SpotBugs não encontrado na pasta bin/. Executando script de download...")
             script_path = Path("scripts/install_spotbugs.sh")
             if script_path.exists():

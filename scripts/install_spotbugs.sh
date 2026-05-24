@@ -3,7 +3,7 @@ set -e
 
 SPOTBUGS_VERSION="4.8.6"
 BIN_DIR="bin"
-SPOTBUGS_DIR="$BIN_DIR/spotbugs"
+SPOTBUGS_DIR="$BIN_DIR/spotbugs-$SPOTBUGS_VERSION"
 
 # Verifica se a pasta já existe
 if [ -d "$SPOTBUGS_DIR" ]; then
@@ -15,19 +15,19 @@ echo "SpotBugs não encontrado. Baixando e instalando a versão $SPOTBUGS_VERSIO
 
 # Cria o diretório de destino se não existir
 mkdir -p "$BIN_DIR"
-cd "$BIN_DIR"
 
 # Baixa a versão otimizada (.tgz)
-wget -q --show-progress "https://github.com/spotbugs/spotbugs/releases/download/$SPOTBUGS_VERSION/spotbugs-$SPOTBUGS_VERSION.tgz"
+ARCHIVE_PATH="$BIN_DIR/spotbugs-$SPOTBUGS_VERSION.tgz"
+wget -q --show-progress -O "$ARCHIVE_PATH" \
+    "https://github.com/spotbugs/spotbugs/releases/download/$SPOTBUGS_VERSION/spotbugs-$SPOTBUGS_VERSION.tgz"
 
-# Descompacta e renomeia
-tar -xzf "spotbugs-$SPOTBUGS_VERSION.tgz"
-mv "spotbugs-$SPOTBUGS_VERSION" "spotbugs"
+# Descompacta
+tar -xzf "$ARCHIVE_PATH" -C "$BIN_DIR"
 
 # Remove o arquivo compactado
-rm "spotbugs-$SPOTBUGS_VERSION.tgz"
+rm "$ARCHIVE_PATH"
 
 # Dá permissão de execução ao binário
-chmod +x "spotbugs/bin/spotbugs"
+chmod +x "$SPOTBUGS_DIR/bin/spotbugs"
 
 echo "SpotBugs instalado com sucesso na pasta $SPOTBUGS_DIR!"
