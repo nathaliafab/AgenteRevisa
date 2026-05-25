@@ -69,7 +69,7 @@ python src/main.py --tool spotbugs
 
 ## 🔄 Como Funciona o Orquestrador
 
-O **OrchestratorAgent** coordena a execução sequencial dos três agentes em múltiplos ciclos até que o código esteja completamente limpo conforme as regras de todas as ferramentas.
+O **Orchestrator** coordena a execução sequencial dos três agentes em múltiplos ciclos até que o código esteja completamente limpo conforme as regras de todas as ferramentas.
 
 ### Fluxo de Execução
 

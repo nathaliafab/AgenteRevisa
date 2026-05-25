@@ -6,10 +6,10 @@ from agents.checkstyle_agent import CheckStyleAgent
 from agents.spotbugs_agent import SpotBugsAgent
 from utils import setup_logger, get_timestamped_output_path
 
-class OrchestratorAgent:
+class Orchestrator:
     def __init__(self):
         self.logger = setup_logger(self.__class__.__name__)
-        self.tool_display_name = "Orchestrator Agent"
+        self.tool_display_name = "Orchestrator"
         self.actual_model = "orchestrator"
         self.agents = [
             SpotBugsAgent(),
