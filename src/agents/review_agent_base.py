@@ -9,7 +9,7 @@ from typing import Dict, List, TypedDict
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, StateGraph
-from utils import setup_logger
+from utils import setup_logger, get_timestamped_output_path
 
 
 __all__ = ["AgentState", "BaseCodeReviewAgent", "PromptTemplate"]
@@ -26,6 +26,7 @@ class AgentState(TypedDict):
     max_iterations: int
     final_report: str
     tool_config: str
+    suppress_output: bool
 
 
 class BaseCodeReviewAgent(ABC):
@@ -158,12 +159,19 @@ class BaseCodeReviewAgent(ABC):
             report += (
                 f"Status: Análise {self.tool_display_name} finalizada com sucesso. Nenhum erro encontrado.\n"
             )
-        else:
+        elif state["iterations"] >= state["max_iterations"]:
             report += (
                 f"Status: Parcial. Atingiu max iterações ({state['max_iterations']}).\n"
             )
             report += (
                 f"Últimos achados observados:\n```text\n{state['analysis_output']}\n```\n"
+            )
+        else:
+            report += (
+                f"Status: Parcial. Erros remanescentes ignorados porque o LLM determinou que não podem ser resolvidos apenas mudando o código.\n"
+            )
+            report += (
+                f"Últimos achados ignorados:\n```text\n{state['analysis_output']}\n```\n"
             )
 
         report += (
@@ -181,10 +189,15 @@ class BaseCodeReviewAgent(ABC):
                     f"```java\n{entry['new_code']}\n```\n"
                 )
 
+        # If running under an orchestrator, allow suppression of per-agent outputs
+        if state.get("suppress_output"):
+            self.logger.info("suppress_output=True; skipping writing per-agent output file for %s", self.tool_display_name)
+            return {"final_report": report}
+
+        # Use timestamped filename to prevent overwriting
         output_dir = Path("output")
-        output_dir.mkdir(parents=True, exist_ok=True)
         output_name = f"{self.tool_display_name.lower().replace(' ', '_')}_output.md"
-        output_path = output_dir / output_name
+        output_path = get_timestamped_output_path(output_dir, output_name)
         output_content = (
             f"{report}\n\n### Final Code\n\n```java\n{state['current_code']}\n```\n"
         )
@@ -196,18 +209,43 @@ class BaseCodeReviewAgent(ABC):
     def _should_continue(self, state: AgentState):
         has_findings = self._analysis_has_findings(state["analysis_output"])
 
-        if has_findings and state["iterations"] < state["max_iterations"]:
+        if not has_findings:
+            self.logger.info("Decisão: Encerrar e gerar relatório. Nenhum erro encontrado.")
+            return "generate_report"
+
+        if state["iterations"] >= state["max_iterations"]:
             self.logger.info(
-                "Decisão: Continuar corrigindo (Fix Code). Iterações: %d/%d",
+                "Decisão: Encerrar. Atingiu max iterações (%d).",
+                state['max_iterations']
+            )
+            return "generate_report"
+            
+        # Acionar LLM para julgar se os achados são corrigíveis via código
+        self.logger.info("Avaliando se os erros remanescentes podem ser resolvidos via código...")
+        prompt = PromptTemplate.from_template(
+            "You are an expert Java developer evaluating findings from a static analysis tool ({tool_name}).\n"
+            "Here is the analysis output:\n{analysis_output}\n\n"
+            "Considering the nature of these warnings/errors, can they be fixed by modifying the provided source code?\n"
+            "Some warnings might be false positives or issues that cannot be resolved via code edits (e.g., missing specific project-level configs, unavailable global suppressions, or CI/CD environment complaints).\n"
+            "Answer ONLY with YES if at least one finding can be fixed by altering the Java code.\n"
+            "Answer ONLY with NO if none of the findings can be fixed by modifying the Java code."
+        )
+        chain = prompt | self.llm
+        response = chain.invoke({
+            "tool_name": self.tool_display_name, 
+            "analysis_output": state["analysis_output"]
+        })
+        decision_text = self._collect_llm_content(response).strip().upper()
+
+        if "YES" in decision_text:
+            self.logger.info(
+                "Decisão: Continuar corrigindo (Fix Code). LLM avaliou que erros são corrigíveis. Iterações: %d/%d",
                 state['iterations'],
                 state['max_iterations']
             )
             return "fix_code"
 
-        self.logger.info(
-            "Decisão: Encerrar e gerar relatório (Generate Report). Achados=%s",
-            has_findings
-        )
+        self.logger.info("Decisão: Encerrar. LLM avaliou que os erros *NÃO* são corrigíveis mudando o código.")
         return "generate_report"
 
     def _build_graph(self):
@@ -237,6 +275,7 @@ class BaseCodeReviewAgent(ABC):
         contributing_md: str,
         original_code: str,
         max_iterations: int = 3,
+        suppress_output: bool = False,
     ) -> AgentState:
         initial_state = AgentState(
             pr_description=pr_description,
@@ -249,6 +288,7 @@ class BaseCodeReviewAgent(ABC):
             max_iterations=max_iterations,
             final_report="",
             tool_config="",
+            suppress_output=suppress_output,
         )
         return self.app.invoke(initial_state)
 
