@@ -28,4 +28,7 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 USER appuser
 
+RUN find . -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
+RUN find . -type f -name "*.sh" -exec chmod +x {} +
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
