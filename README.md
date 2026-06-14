@@ -73,33 +73,32 @@ python src/main.py --tool spotbugs --file arquivo1.java,arquivo2.java
 
 ```
 
-## 🔄 Como Funciona o Orquestrador
+## 🔄 Como Funciona
 
-O **Orchestrator** coordena a execução sequencial dos três agentes em múltiplos ciclos até que o código esteja completamente limpo conforme as regras de todas as ferramentas.
+O **Orchestrator** atua como o cérebro da operação. Ele recebe seus arquivos Java e coordena a execução de múltiplos agentes de análise em um ciclo contínuo, garantindo que o código final atenda aos padrões de todas as ferramentas sem perder a lógica de negócio original.
 
-### Fluxo de Execução
+### Visão Macro: O Fluxo de Execução
 
-TODO
+O processo começa gerando uma suíte de testes de base (baseline). Em seguida, o orquestrador inicia um grande ciclo externo (limitado a 5 repetições) onde o código modificado passa sequencialmente pelos três agentes especializados: **SpotBugs**, **PMD** e **CheckStyle**. A execução finaliza quando uma rodada completa não resulta em nenhuma alteração ou quando o limite de ciclos é atingido, gerando um relatório final.
+
+![Visão Macro do Orquestrador](/img/DG2.png)
+
+### Visão Micro: O Comportamento de Cada Agente
+
+Ao chegar em uma ferramenta específica, o agente inicia seu próprio loop interno de correções (limitado pelo parâmetro `--max-iter`). Ele analisa o código e, se encontrar problemas, julga via IA se são solucionáveis. Caso positivo, ele altera o código e roda os testes de regressão. Se os testes passarem, ele reanalisa o código, repetindo esse micro-ciclo até zerar os erros daquela ferramenta.
+
+![Visão Detalhada das Decisões](/img/DG1.png)
 
 ### Características Principais
 
-1. **Testes Contínuos**: O agente de testes cria uma base sólida na iteração zero. Nos ciclos seguintes, qualquer modificação feita pelas ferramentas passará por validação contra esses testes gerados, garantindo que o comportamento original não seja quebrado.
+1. **Testes como Base (Baseline):** O agente de testes cria a fundação no início. Qualquer alteração feita pelas ferramentas de análise só é aceita se os testes continuarem passando, impedindo que "correções" quebrem a lógica do sistema.
 
-2. **Execução Sequencial**: Cada agente recebe o código corrigido pelo agente anterior no mesmo ciclo
-   * **SpotBugs** analisa segurança, concorrência e bugs lógicos
-   * **PMD** detecta más práticas, complexidade e código morto
-   * **CheckStyle** verifica formatação e estilo de código
+2. **Correção em Camadas:** A validação ocorre em estágios lógicos: primeiro o **SpotBugs** limpa bugs severos e vulnerabilidades; depois o **PMD** remove más práticas e simplifica o código; por fim, o **CheckStyle** padroniza a formatação visual.
 
-3. **Múltiplos Ciclos**: O orquestrador repete até 5 ciclos
-   * Garante que correções de um agente não quebrem as regras de outro
-   * Continua até convergência: quando nenhum agente faz mudanças no código
+3. **Loops Independentes (Convergência):**
+   * *Loop Interno (Agente):* Focado em corrigir múltiplos erros de uma mesma ferramenta de uma vez.
+   * *Loop Externo (Orquestrador):* Garante que uma formatação do CheckStyle não reintroduza um aviso no PMD, rodando tudo de novo até o código estabilizar completamente.
 
-4. **LLM Inteligente**: Antes de corrigir, cada agente pergunta ao LLM:
-   > "Esses erros podem ser corrigidos apenas mudando o código Java?"
-   * Se não, o agente para (marca como "não corrigível via código")
-   * Evita loops infinitos em warnings que não podem ser resolvidos
+4. **LLM "Pé no Chão":** A IA não tenta consertar o impossível. Se um alerta não puder ser resolvido alterando o código (ex: falsos positivos ou falta de configuração externa), o agente ignora o aviso para evitar loops infinitos de tentativa e erro.
 
-5. **Relatório Unificado**: Quando executado em modo orquestrador:
-   * Suprime outputs individuais dos agentes
-   * Salva um único relatório consolidado na pasta `output/` com o padrão: `{nome_do_arquivo}_orchestrator_output_{timestamp}.md`
-   * Contém análise de todos os 3 agentes para cada ciclo, separadamente para cada arquivo analisado.
+5. **Relatório Unificado:** Ao rodar o orquestrador, os *logs* individuais são ocultados para não poluir o terminal. No final, um relatório consolidado é gerado em `output/{nome_do_arquivo}_orchestrator_output_{timestamp}.md`, contendo todo o histórico de decisões e o código refatorado.
