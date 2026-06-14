@@ -110,8 +110,6 @@ def main():
 
     logger.info("Starting agent execution")
     logger.info("Agent: %s", agent.__class__.__name__)
-    logger.info("Model: %s", agent.actual_model)
-    logger.info("Tool: %s", agent.tool_display_name)
     logger.info("Max Iterations: %d", args.max_iter)
 
     result = agent.run(

@@ -9,13 +9,13 @@ from typing import Dict, List, TypedDict
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, StateGraph
-from utils import setup_logger, get_timestamped_output_path
+from utils import setup_logger, get_timestamped_output_path, handle_modification, log_test_summary
 
 
 __all__ = ["AgentState", "BaseCodeReviewAgent", "PromptTemplate"]
 
 
-class AgentState(TypedDict):
+class AgentState(TypedDict, total=False):
     pr_description: str
     contributing_md: str
     original_code: str
@@ -28,6 +28,8 @@ class AgentState(TypedDict):
     tool_config: str
     suppress_output: bool
     generated_tests: str
+    code_changes: List[str]
+    test_execution_outputs: List[str]
 
 
 class BaseCodeReviewAgent(ABC):
@@ -80,12 +82,21 @@ class BaseCodeReviewAgent(ABC):
         return f"Command finished with exit code {result.returncode}".strip()
 
     def _log_analysis_output(self, analysis_output: str) -> None:
-        """Formata e imprime a saída da análise padronizada (Ciano e indentado)."""
-        indented_output = "\n".join(f"      | {line}" for line in analysis_output.splitlines())
-        colored_output = f"\033[96m{indented_output}\033[0m"
-        self.logger.info("Resultados da Análise do %s:\n%s", self.tool_display_name, colored_output)
+        """Formata e imprime a saída da análise padronizada em uma caixa bonita."""
+        lines = analysis_output.strip().splitlines()
+        if not lines:
+            self.logger.info("Nenhum problema encontrado por %s.", self.tool_display_name)
+            return
+            
+        box_lines = []
+        box_lines.append(f"┌── ACHADOS DA ANÁLISE ({self.tool_display_name.upper()}) ───────────────────────────────────")
+        for line in lines:
+            box_lines.append(f"│ {line}")
+        box_lines.append("└───────────────────────────────────────────────────────────────────────────────")
+        
+        self.logger.info("\n" + "\n".join(box_lines))
 
-    def _run_tests(self, java_file_path: Path, temp_dir: str, current_code: str, test_code: str) -> str:
+    def _run_tests(self, java_file_path: Path, temp_dir: str, current_code: str, test_code: str, state_test_outputs: list = None) -> str:
         junit_jar = Path("bin/junit-platform-console-standalone.jar").absolute()
         if not junit_jar.exists():
             import urllib.request
@@ -93,21 +104,56 @@ class BaseCodeReviewAgent(ABC):
             try:
                 urllib.request.urlretrieve("https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.10.0/junit-platform-console-standalone-1.10.0.jar", junit_jar)
             except Exception as e:
-                return f"Erro ao baixar JUnit: {e}"
+                err_msg = f"Erro ao baixar JUnit: {e}"
+                self.logger.error(err_msg)
+                if state_test_outputs is not None:
+                    state_test_outputs.append(err_msg)
+                return err_msg
 
         test_file_path = Path(temp_dir) / "PRCodeTest.java"
         test_file_path.write_text(test_code, encoding="utf-8")
         
         comp_cmd = ["javac", "-d", temp_dir, "-cp", str(junit_jar), str(java_file_path), str(test_file_path)]
         comp_result = subprocess.run(comp_cmd, capture_output=True, text=True)
+        
+        comp_output = ""
         if comp_result.returncode != 0:
-            return f"Test Compilation Error:\n{comp_result.stderr}"
+            comp_output = f"Test Compilation Error:\n{comp_result.stderr}"
+        else:
+            comp_output = "Test Compilation Successful."
+
+        if comp_result.returncode != 0:
+            log_test_summary(self.logger, java_file_path.name, comp_result.returncode, comp_result.stderr)
+            full_log = f"=== TEST COMPILATION FAILURE ({java_file_path.name}) ===\n{comp_output}"
+            if state_test_outputs is not None:
+                state_test_outputs.append(full_log)
+            return comp_output
 
         run_cmd = ["java", "-jar", str(junit_jar), "-cp", temp_dir, "--scan-classpath"]
         run_result = subprocess.run(run_cmd, capture_output=True, text=True)
+        
+        exec_output = f"STDOUT:\n{run_result.stdout}"
+        if run_result.stderr:
+            exec_output += f"\nSTDERR:\n{run_result.stderr}"
+
+        log_test_summary(
+            self.logger,
+            java_file_path.name,
+            comp_result.returncode,
+            comp_result.stderr,
+            run_result.returncode,
+            run_result.stdout
+        )
+
         if run_result.returncode != 0:
+            full_log = f"=== TEST EXECUTION FAILURE ({java_file_path.name}) ===\n{exec_output}"
+            if state_test_outputs is not None:
+                state_test_outputs.append(full_log)
             return f"Test Execution Error:\n{run_result.stdout}\n{run_result.stderr}"
         
+        full_log = f"=== TEST EXECUTION SUCCESS ({java_file_path.name}) ===\n{exec_output}"
+        if state_test_outputs is not None:
+            state_test_outputs.append(full_log)
         return ""
 
     def _run_analysis_node(self, state: AgentState):
@@ -122,6 +168,8 @@ class BaseCodeReviewAgent(ABC):
         match = re.search(r"class\s+(\w+)\s*{", current_code)
         class_name = match.group(1) if match else "PRCode"
 
+        test_outputs_list = state.get("test_execution_outputs", [])[:]
+
         with tempfile.TemporaryDirectory() as temp_dir:
             java_file_path = Path(temp_dir) / f"{class_name}.java"
             java_file_path.write_text(current_code, encoding="utf-8")
@@ -131,7 +179,7 @@ class BaseCodeReviewAgent(ABC):
             )
 
             if state.get("generated_tests") and not self._analysis_has_findings(analysis_output):
-                test_output = self._run_tests(java_file_path, temp_dir, current_code, state["generated_tests"])
+                test_output = self._run_tests(java_file_path, temp_dir, current_code, state["generated_tests"], test_outputs_list)
                 if test_output:
                     analysis_output = f"Falhas em testes detectadas:\nO código falhou nos testes gerados. Corrija o código de forma a passar nos testes de regras de negócios mantendo a adequação estática:\n{test_output}".strip()
 
@@ -141,6 +189,7 @@ class BaseCodeReviewAgent(ABC):
             "analysis_output": analysis_output.strip(),
             "current_code": current_code,
             "iterations": state["iterations"] + 1,
+            "test_execution_outputs": test_outputs_list,
         }
 
     def _select_config_node(self, state: AgentState):
@@ -173,14 +222,18 @@ class BaseCodeReviewAgent(ABC):
 
         code_match = re.search(r"<CODE>(.*?)</CODE>", content, re.DOTALL)
         test_match = re.search(r"<TEST>(.*?)</TEST>", content, re.DOTALL)
+        explanation_match = re.search(r"<EXPLANATION>(.*?)</EXPLANATION>", content, re.DOTALL)
+
+        explanation = explanation_match.group(1).strip() if explanation_match else ""
 
         if code_match:
             new_code = self._strip_code_fences(code_match.group(1))
         else:
             new_code = self._strip_code_fences(content)
             # Remove possible dangling test section if the LLM hallucinated the tags
-            if "<TEST>" in new_code:
-                new_code = new_code.split("<TEST>")[0].strip()
+            for tag in ["<TEST>", "<EXPLANATION>", "<CODE>"]:
+                if tag in new_code:
+                    new_code = new_code.split(tag)[0].strip()
 
         new_test_code = state.get("generated_tests", "")
         if test_match:
@@ -188,6 +241,32 @@ class BaseCodeReviewAgent(ABC):
             self.logger.info("O agente de correção alterou também a classe de testes.")
             indented_test = "\n".join(f"      | {line}" for line in new_test_code.splitlines())
             self.logger.info("Testes atualizados:\n\033[92m%s\033[0m", indented_test)
+
+        code_changes = state.get("code_changes", [])[:]
+
+        # Check for main code changes
+        if new_code != state["current_code"]:
+            label = f"Código Principal por {self.tool_display_name}"
+            md_change = handle_modification(
+                label=label,
+                old_text=state["current_code"],
+                new_text=new_code,
+                explanation=explanation,
+                logger=self.logger
+            )
+            code_changes.append(md_change)
+
+        # Check for test code changes
+        if test_match and new_test_code != state.get("generated_tests", ""):
+            label = f"Classe de Testes por {self.tool_display_name}"
+            md_change = handle_modification(
+                label=label,
+                old_text=state.get("generated_tests", ""),
+                new_text=new_test_code,
+                explanation=explanation,
+                logger=self.logger
+            )
+            code_changes.append(md_change)
 
         new_history = state.get("fixes_history", []) + [
             {
@@ -197,7 +276,12 @@ class BaseCodeReviewAgent(ABC):
             }
         ]
 
-        return {"current_code": new_code, "generated_tests": new_test_code, "fixes_history": new_history}
+        return {
+            "current_code": new_code,
+            "generated_tests": new_test_code,
+            "fixes_history": new_history,
+            "code_changes": code_changes,
+        }
 
     def _generate_report_node(self, state: AgentState):
         self.logger.info("Executando nó: GENERATE REPORT")
@@ -238,6 +322,16 @@ class BaseCodeReviewAgent(ABC):
                     "Codigo Gerado:\n"
                     f"```java\n{entry['new_code']}\n```\n"
                 )
+
+        if state.get("code_changes"):
+            report += "\n### Alterações Realizadas pelo LLM com Explicação\n\n"
+            for change in state["code_changes"]:
+                report += change + "\n"
+
+        if state.get("test_execution_outputs"):
+            report += "\n### Execuções de Testes Realizadas\n\n"
+            for test_out in state["test_execution_outputs"]:
+                report += f"```text\n{test_out}\n```\n\n"
 
         # If running under an orchestrator, allow suppression of per-agent outputs
         if state.get("suppress_output"):
@@ -341,6 +435,8 @@ class BaseCodeReviewAgent(ABC):
             tool_config="",
             suppress_output=suppress_output,
             generated_tests=generated_tests,
+            code_changes=[],
+            test_execution_outputs=[],
         )
         return self.app.invoke(initial_state)
 

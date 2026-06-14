@@ -41,6 +41,17 @@ class Orchestrator:
         if generated_tests:
             final_report += "### Baseline Tests Generated\n```java\n" + generated_tests + "\n```\n\n"
 
+        # Append initial test generation changes and execution outputs to report
+        if getattr(self.test_agent, "code_changes", None):
+            final_report += "### Alterações Realizadas na Geração de Testes Baseline\n\n"
+            for change in self.test_agent.code_changes:
+                final_report += change + "\n"
+
+        if getattr(self.test_agent, "test_execution_outputs", None):
+            final_report += "### Execuções de Testes no Baseline\n\n"
+            for test_out in self.test_agent.test_execution_outputs:
+                final_report += f"```text\n{test_out}\n```\n\n"
+
         while cycle < max_cycles:
             cycle += 1
             self.logger.info("--- Starting Cycle %d ---", cycle)

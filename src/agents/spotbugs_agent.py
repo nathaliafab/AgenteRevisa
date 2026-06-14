@@ -51,6 +51,7 @@ class SpotBugsAgent(BaseCodeReviewAgent):
         )
 
         current_code = state.get("current_code", state["original_code"])
+        test_outputs_list = state.get("test_execution_outputs", [])[:]
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # O SpotBugs analisa arquivos compilaos (.class). Por isso precisamos compilar antes.
@@ -76,7 +77,7 @@ class SpotBugsAgent(BaseCodeReviewAgent):
                 analysis_output = self._run_command(cmd)
 
             if state.get("generated_tests") and not self._analysis_has_findings(analysis_output):
-                test_output = self._run_tests(java_file_path, temp_dir, current_code, state["generated_tests"])
+                test_output = self._run_tests(java_file_path, temp_dir, current_code, state["generated_tests"], test_outputs_list)
                 if test_output:
                     analysis_output = f"Falhas em testes detectadas:\nO código falhou nos testes gerados. Corrija o código de forma a passar nos testes de regras de negócios mantendo a adequação estática:\n{test_output}".strip()
 
@@ -86,6 +87,7 @@ class SpotBugsAgent(BaseCodeReviewAgent):
             "analysis_output": analysis_output.strip(),
             "current_code": current_code,
             "iterations": state["iterations"] + 1,
+            "test_execution_outputs": test_outputs_list,
         }
 
     def _build_fix_prompt(self) -> PromptTemplate:
@@ -98,7 +100,8 @@ class SpotBugsAgent(BaseCodeReviewAgent):
             "Testes de regras de negócio (devem continuar passando):\n```java\n{generated_tests}\n```\n\n"
             "Achados do SpotBugs (ou das falhas no teste):\n{analysis_output}\n\n"
             "Por favor, retorne o código Java modificado entre tags <CODE> e </CODE>. "
-            "Se for NECESSÁRIO corrigir o teste devido a uma mudança de sintaxe no código principal (ex: renomeio de classe ou variável que o agente reclamou de letra minúscula/maiúscula), retorne TAMBÉM o código do teste corrigido entre tags <TEST> e </TEST>."
+            "Se for NECESSÁRIO corrigir o teste devido a uma mudança de sintaxe no código principal (ex: renomeio de classe ou variável que o agente reclamou de letra minúscula/maiúscula), retorne TAMBÉM o código do teste corrigido entre tags <TEST> e </TEST>.\n\n"
+            "Além disso, forneça uma breve explicação em português do porquê essas alterações foram feitas entre as tags <EXPLANATION> e </EXPLANATION>."
         )
 
     def _analysis_has_findings(self, analysis_output: str) -> bool:

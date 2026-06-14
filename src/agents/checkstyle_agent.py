@@ -61,7 +61,8 @@ class CheckStyleAgent(BaseCodeReviewAgent):
             "Testes de regras de negócio (devem continuar passando):\n```java\n{generated_tests}\n```\n\n"
             "Achados do CheckStyle (ou das falhas no teste):\n{analysis_output}\n\n"
             "Por favor, retorne o código Java modificado entre tags <CODE> e </CODE>. "
-            "Se for NECESSÁRIO corrigir o teste devido a uma mudança de sintaxe no código principal (ex: renomeio de classe ou variável que o agente reclamou de letra minúscula/maiúscula), retorne TAMBÉM o código do teste corrigido entre tags <TEST> e </TEST>."
+            "Se for NECESSÁRIO corrigir o teste devido a uma mudança de sintaxe no código principal (ex: renomeio de classe ou variável que o agente reclamou de letra minúscula/maiúscula), retorne TAMBÉM o código do teste corrigido entre tags <TEST> e </TEST>.\n\n"
+            "Além disso, forneça uma breve explicação em português do porquê essas alterações foram feitas entre as tags <EXPLANATION> e </EXPLANATION>."
         )
 
     def _analysis_has_findings(self, analysis_output: str) -> bool:
