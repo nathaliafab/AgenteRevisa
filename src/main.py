@@ -1,4 +1,6 @@
 import argparse
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 
 from agents.pmd_agent import PMDAgent
@@ -14,61 +16,15 @@ logger = setup_logger()
 PR_DESCRIPTION = "Add user management."
 CONTRIBUTING_MD = "Use 'CamelCase' and follow Google Java Style."
 
-# Intentional issues in the Java code below:
-# 1. Class starts with a lowercase letter (userManager)
-# 2. Method starts with an uppercase letter (DoSomething)
-# 3. Unused imports (ArrayList) and attributes breaking naming conventions (STATUS)
-# 4. Swallowed exception with an empty catch and division by zero
-# 5. Deep nesting / unnecessary complexity with if(true)
-# 6. Unused variables and methods (unusedMethod, unused variable)
-# 7. Security: Unchecked access causing obvious NullPointerException (items.get(0).length())
-# 8. Concurrency: Static formatter is not thread-safe (SimpleDateFormat).
-JAVA_MOCK_CODE = """import java.util.List;
-import java.util.ArrayList;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-
-public class userManager {
-    private int STATUS = 0;
-    
-    // SimpleDateFormat is NOT thread-safe. Marked as static final, sharing it across threads causes hidden exceptions.
-    private static final SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
-
-    public void DoSomething(List<String> items) {
-        int variableA = 10;
-        
-        try {
-            int calc = variableA / 0;
-        } catch (Exception ex) {
-            // empty catch
-        }
-        
-        // Clear example of potential NullPointerException:
-        List<String> mockItems = null;
-        if (mockItems.get(0).length() > 0) {
-            System.out.println("Has items");
-        }
-        
-        for(int i = 0; i < 10; i++) {
-            for(int j = 0; j < 10; j++) {
-                if (true) {
-                    System.out.println("nested loop on day: " + formatter.format(new Date()));
-                }
-            }
-        }
-    }
-    
-    private void unusedMethod() {
-        String test = "unused";
-    }
-}"""
-
 AGENT_MAP = {
     "pmd": PMDAgent,
     "checkstyle": CheckStyleAgent,
     "spotbugs": SpotBugsAgent,
     "all": Orchestrator,
 }
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+INPUT_DIR = PROJECT_ROOT / "input"
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -89,6 +45,18 @@ def parse_arguments() -> argparse.Namespace:
         help="Maximum number of iterations the agent can perform (default: 3)",
     )
 
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--all",
+        action="store_true",
+        help="Process all .java files in the input/ directory",
+    )
+    group.add_argument(
+        "--file",
+        type=str,
+        help="Comma-separated list of files to process (e.g., file1,file2.java)",
+    )
+
     return parser.parse_args()
 
 
@@ -104,25 +72,72 @@ def _build_agent(agent_name: str):
     return agent_class()
 
 
+def get_target_files(args: argparse.Namespace) -> list[Path]:
+    """Resolves which files to process based on CLI arguments."""
+    if not INPUT_DIR.exists() or not INPUT_DIR.is_dir():
+        logger.error(f"Input directory not found: {INPUT_DIR}")
+        sys.exit(1)
+
+    if args.all:
+        return list(INPUT_DIR.glob("*.java"))
+
+    if args.file:
+        files = []
+        file_names = [f.strip() for f in args.file.split(",")]
+        for name in file_names:
+            if not name.endswith(".java"):
+                name += ".java"
+
+            file_path = INPUT_DIR / name
+            if file_path.exists() and file_path.is_file():
+                files.append(file_path)
+            else:
+                logger.warning(f"File not found or invalid: {file_path}")
+        return files
+
+    return []
+
+
 def main():
     args = parse_arguments()
+    files_to_process = get_target_files(args)
+
+    if not files_to_process:
+        logger.warning("No valid Java files found to process. Exiting.")
+        sys.exit(0)
+
     agent = _build_agent(args.tool)
 
     logger.info("Starting agent execution")
     logger.info("Agent: %s", agent.__class__.__name__)
-    logger.info("Model: %s", agent.actual_model)
-    logger.info("Tool: %s", agent.tool_display_name)
+    logger.info("Model: %s", getattr(agent, "actual_model", "Unknown"))
+    logger.info("Tool: %s", getattr(agent, "tool_display_name", "Unknown"))
     logger.info("Max Iterations: %d", args.max_iter)
+    logger.info("Files to process: %d", len(files_to_process))
 
-    result = agent.run(
-        pr_description=PR_DESCRIPTION,
-        contributing_md=CONTRIBUTING_MD,
-        original_code=JAVA_MOCK_CODE,
-        max_iterations=args.max_iter,
-    )
+    for file_path in files_to_process:
+        logger.info("\n" + "=" * 40)
+        logger.info(f"Processing: {file_path.name}")
+        logger.info("=" * 40)
 
-    print(result.get("final_report", "No final report generated."))
-    print(result.get("current_code", "No code returned."))
+        try:
+            java_code = file_path.read_text(encoding="utf-8")
+
+            result = agent.run(
+                pr_description=PR_DESCRIPTION,
+                contributing_md=CONTRIBUTING_MD,
+                original_code=java_code,
+                max_iterations=args.max_iter,
+                file_name=file_path.name,
+            )
+
+            print(f"\n--- Results for {file_path.name} ---")
+            print(result.get("final_report", "No final report generated."))
+            print("\n--- Current Code ---")
+            print(result.get("current_code", "No code returned."))
+
+        except Exception as e:
+            logger.error(f"Failed to process {file_path.name}: {e}")
 
 
 if __name__ == "__main__":

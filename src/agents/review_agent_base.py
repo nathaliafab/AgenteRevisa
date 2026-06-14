@@ -28,6 +28,7 @@ class AgentState(TypedDict):
     tool_config: str
     suppress_output: bool
     generated_tests: str
+    file_name: str 
 
 
 class BaseCodeReviewAgent(ABC):
@@ -146,7 +147,6 @@ class BaseCodeReviewAgent(ABC):
     def _select_config_node(self, state: AgentState):
         """Usa o LLM para selecionar a configuração correta da ferramenta."""
         self.logger.info("Executando nó: SELECT %s CONFIG", self.tool_display_name.upper())
-        
         config = self._determine_tool_config(state["pr_description"], state["contributing_md"])
         return {"tool_config": config}
 
@@ -178,7 +178,6 @@ class BaseCodeReviewAgent(ABC):
             new_code = self._strip_code_fences(code_match.group(1))
         else:
             new_code = self._strip_code_fences(content)
-            # Remove possible dangling test section if the LLM hallucinated the tags
             if "<TEST>" in new_code:
                 new_code = new_code.split("<TEST>")[0].strip()
 
@@ -239,14 +238,15 @@ class BaseCodeReviewAgent(ABC):
                     f"```java\n{entry['new_code']}\n```\n"
                 )
 
-        # If running under an orchestrator, allow suppression of per-agent outputs
         if state.get("suppress_output"):
             self.logger.info("suppress_output=True; skipping writing per-agent output file for %s", self.tool_display_name)
             return {"final_report": report}
 
-        # Use timestamped filename to prevent overwriting
         output_dir = Path("output")
-        output_name = f"{self.tool_display_name.lower().replace(' ', '_')}_output.md"
+        base_file = Path(state.get("file_name", "Unknown")).stem
+        tool_name = self.tool_display_name.lower().replace(' ', '_')
+        output_name = f"{base_file}_{tool_name}_output.md"
+        
         output_path = get_timestamped_output_path(output_dir, output_name)
         output_content = (
             f"{report}\n\n### Final Code\n\n```java\n{state['current_code']}\n```\n"
@@ -327,6 +327,7 @@ class BaseCodeReviewAgent(ABC):
         max_iterations: int = 3,
         suppress_output: bool = False,
         generated_tests: str = "",
+        file_name: str = "Unknown.java", 
     ) -> AgentState:
         initial_state = AgentState(
             pr_description=pr_description,
@@ -341,6 +342,7 @@ class BaseCodeReviewAgent(ABC):
             tool_config="",
             suppress_output=suppress_output,
             generated_tests=generated_tests,
+            file_name=file_name,
         )
         return self.app.invoke(initial_state)
 
