@@ -6,7 +6,7 @@ O **AgenteRevisa** é um sistema automatizado de revisão e refatoração de có
 
 O sistema orquestra os seguintes analisadores (sub-agentes):
 - **Test Generation**: Agente proativo executado no início do fluxo que cria testes baseados em regras de negócio com o framework JUnit 5 e garante que as lógicas de negócio não quebrem ao longo da execução dos agentes de review.
-- **PMD**: Focado em detectar más práticas, complexidade ciclomática elevada, código morto e loops ineficientes.
+- **PMD**: Focado em detectar más práticas, complexidade ciclomática elevada, código morto e loops ineficientes. *(Faz a auto-instalação da biblioteca no primeiro uso).*
 - **CheckStyle**: Focado em formatação de código, indentação e adesão a regras de estilo (como o *Google Java Style*).
 - **SpotBugs**: Focado em segurança, vulnerabilidades de concorrência (*Thread-Safety*) e problemas lógicos a nível de compilação (ex: `NullPointerException`). *(Faz a auto-instalação da biblioteca no primeiro uso).*
 
@@ -51,21 +51,26 @@ docker compose build
 docker compose run --rm agente-revisa
 ```
 
-Depois do help aparecer, execute as ferramentas com a tag `--tool`:
+Para rodar as análises, é **obrigatório** informar quais arquivos devem ser processados utilizando a flag `--all` (para todos os arquivos dentro de `input/`) ou `--file` (para arquivos específicos).
+
+Exemplos de uso:
 
 ```bash
+# Executar pipeline de revisão completo com todos os agentes em TODOS os arquivos
+python src/main.py --all
 
-# Executar pipeline de revisão completo com todos os agentes
-python src/main.py
+# Executar a pipeline completa em um arquivo específico
+python src/main.py --file userManager.java
 
-# Executar a pipeline de revisão baseada na ferramenta PMD
-python src/main.py --tool pmd
+# Executar a pipeline de revisão baseada na ferramenta PMD em todos os arquivos
+python src/main.py --tool pmd --all
 
 # Executar a pipeline observando estritamente regras de sintaxe CheckStyle
-python src/main.py --tool checkstyle
+python src/main.py --tool checkstyle --all
 
-# Executar a pipeline com validação SpotBugs de Memory e Bytecode (Padrão)
-python src/main.py --tool spotbugs
+# Executar a pipeline com validação SpotBugs de Memory e Bytecode apenas em arquivos específicos
+python src/main.py --tool spotbugs --file arquivo1.java,arquivo2.java
+
 ```
 
 ## 🔄 Como Funciona o Orquestrador
@@ -74,56 +79,27 @@ O **Orchestrator** coordena a execução sequencial dos três agentes em múltip
 
 ### Fluxo de Execução
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│         Orquestrador inicia (máx 5 ciclos)                  │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        │      Código Inicial         │
-        └──────────────┬──────────────┘
-                       │
-         ┌─────────────▼──────────────┐
-         │   Ciclo 1, 2, 3...        │
-         └─────────────┬──────────────┘
-                       │
-        ┌──────────────┼──────────────┐
-        │              │              │
-        ▼              ▼              ▼
-    ┌────────┐    ┌────────┐    ┌──────────┐
-    │SpotBugs│───▶│  PMD   │───▶│CheckStyle│
-    └────────┘    └────────┘    └──────────┘
-        │              │              │
-        └──────────────┼──────────────┘
-                       │
-            ┌──────────▼──────────┐
-            │   Código Corrigido  │
-            └──────────┬──────────┘
-                       │
-          Nenhuma mudança no ciclo?
-          SIM ─────────────────────▶ FIM
-          NÃO │
-              ▼
-          Próximo ciclo
-```
+TODO
 
 ### Características Principais
 
-1. **Execução Sequencial**: Cada agente recebe o código corrigido pelo agente anterior no mesmo ciclo
-   - **SpotBugs** analisa segurança, concorrência e bugs lógicos
-   - **PMD** detecta más práticas, complexidade e código morto
-   - **CheckStyle** verifica formatação e estilo de código
+1. **Testes Contínuos**: O agente de testes cria uma base sólida na iteração zero. Nos ciclos seguintes, qualquer modificação feita pelas ferramentas passará por validação contra esses testes gerados, garantindo que o comportamento original não seja quebrado.
 
-2. **Múltiplos Ciclos**: O orquestrador repete até 5 ciclos
-   - Garante que correções de um agente não quebrem as regras de outro
-   - Continua até convergência: quando nenhum agente faz mudanças no código
+2. **Execução Sequencial**: Cada agente recebe o código corrigido pelo agente anterior no mesmo ciclo
+   * **SpotBugs** analisa segurança, concorrência e bugs lógicos
+   * **PMD** detecta más práticas, complexidade e código morto
+   * **CheckStyle** verifica formatação e estilo de código
 
-3. **LLM Inteligente**: Antes de corrigir, cada agente pergunta ao LLM:
+3. **Múltiplos Ciclos**: O orquestrador repete até 5 ciclos
+   * Garante que correções de um agente não quebrem as regras de outro
+   * Continua até convergência: quando nenhum agente faz mudanças no código
+
+4. **LLM Inteligente**: Antes de corrigir, cada agente pergunta ao LLM:
    > "Esses erros podem ser corrigidos apenas mudando o código Java?"
-   - Se não, o agente para (marca como "não corrigível via código")
-   - Evita loops infinitos em warnings que não podem ser resolvidos
+   * Se não, o agente para (marca como "não corrigível via código")
+   * Evita loops infinitos em warnings que não podem ser resolvidos
 
-4. **Relatório Unificado**: Quando executado em modo orquestrador (`python src/main.py`):
-   - Suprime outputs individuais dos agentes
-   - Salva um único relatório consolidado em `output/orchestrator_output_{timestamp}.md`
-   - Contém análise de todos os 3 agentes para cada ciclo
+5. **Relatório Unificado**: Quando executado em modo orquestrador:
+   * Suprime outputs individuais dos agentes
+   * Salva um único relatório consolidado na pasta `output/` com o padrão: `{nome_do_arquivo}_orchestrator_output_{timestamp}.md`
+   * Contém análise de todos os 3 agentes para cada ciclo, separadamente para cada arquivo analisado.

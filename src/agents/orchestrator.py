@@ -25,8 +25,9 @@ class Orchestrator:
         contributing_md: str,
         original_code: str,
         max_iterations: int = 3,
+        file_name: str = "Unknown.java",
     ) -> Dict[str, Any]:
-        self.logger.info("Gerando testes de integração baseados no código original.")
+        self.logger.info("Gerando testes de integração baseados no código original do arquivo: %s", file_name)
         # Gera os testes base que servem de baseline
         generated_tests = self.test_agent.run(original_code=original_code, max_iterations=max_iterations)
 
@@ -57,6 +58,7 @@ class Orchestrator:
                     max_iterations=max_iterations,
                     suppress_output=True,
                     generated_tests=generated_tests,
+                    file_name=file_name,
                 )
                 current_code = result.get("current_code", current_code)
                 generated_tests = result.get("generated_tests", generated_tests)
@@ -69,9 +71,10 @@ class Orchestrator:
                 final_report += f"\nNo changes made in cycle {cycle}. All agents are satisfied. Stopping.\n"
                 break
         
-        # Ensure output directory exists and use timestamped filename
         output_dir = Path("output")
-        output_path = get_timestamped_output_path(output_dir, "orchestrator_output.md")
+        base_file = Path(file_name).stem
+        output_name = f"{base_file}_orchestrator_output.md"
+        output_path = get_timestamped_output_path(output_dir, output_name)
 
         output_content = f"{final_report}\n\n### Final Code\n\n```java\n{current_code}\n```\n"
         output_path.write_text(output_content, encoding="utf-8")
