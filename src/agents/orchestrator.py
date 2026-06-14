@@ -4,6 +4,7 @@ from pathlib import Path
 from agents.pmd_agent import PMDAgent
 from agents.checkstyle_agent import CheckStyleAgent
 from agents.spotbugs_agent import SpotBugsAgent
+from agents.test_generation_agent import TestGenerationAgent
 from utils import setup_logger, get_timestamped_output_path
 
 class Orchestrator:
@@ -11,6 +12,7 @@ class Orchestrator:
         self.logger = setup_logger(self.__class__.__name__)
         self.tool_display_name = "Orchestrator"
         self.actual_model = "orchestrator"
+        self.test_agent = TestGenerationAgent()
         self.agents = [
             SpotBugsAgent(),
             PMDAgent(),
@@ -24,6 +26,10 @@ class Orchestrator:
         original_code: str,
         max_iterations: int = 3,
     ) -> Dict[str, Any]:
+        self.logger.info("Gerando testes de integração baseados no código original.")
+        # Gera os testes base que servem de baseline
+        generated_tests = self.test_agent.run(original_code=original_code, max_iterations=max_iterations)
+
         current_code = original_code
         max_cycles = 5
         cycle = 0
@@ -32,6 +38,8 @@ class Orchestrator:
         self.logger.info("Max cycles: %d", max_cycles)
 
         final_report = "### Orchestrator Evaluation Report\n\n"
+        if generated_tests:
+            final_report += "### Baseline Tests Generated\n```java\n" + generated_tests + "\n```\n\n"
 
         while cycle < max_cycles:
             cycle += 1
@@ -48,8 +56,10 @@ class Orchestrator:
                     original_code=current_code,
                     max_iterations=max_iterations,
                     suppress_output=True,
+                    generated_tests=generated_tests,
                 )
                 current_code = result.get("current_code", current_code)
+                generated_tests = result.get("generated_tests", generated_tests)
                 
                 report = result.get("final_report", "No report")
                 final_report += f"**{agent.tool_display_name} Report:**\n{report}\n\n"
