@@ -27,6 +27,7 @@ class AgentState(TypedDict):
     final_report: str
     tool_config: str
     suppress_output: bool
+    generated_tests: str
 
 
 class BaseCodeReviewAgent(ABC):
@@ -84,6 +85,31 @@ class BaseCodeReviewAgent(ABC):
         colored_output = f"\033[96m{indented_output}\033[0m"
         self.logger.info("Resultados da Análise do %s:\n%s", self.tool_display_name, colored_output)
 
+    def _run_tests(self, java_file_path: Path, temp_dir: str, current_code: str, test_code: str) -> str:
+        junit_jar = Path("bin/junit-platform-console-standalone.jar").absolute()
+        if not junit_jar.exists():
+            import urllib.request
+            Path("bin").mkdir(exist_ok=True)
+            try:
+                urllib.request.urlretrieve("https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.10.0/junit-platform-console-standalone-1.10.0.jar", junit_jar)
+            except Exception as e:
+                return f"Erro ao baixar JUnit: {e}"
+
+        test_file_path = Path(temp_dir) / "PRCodeTest.java"
+        test_file_path.write_text(test_code, encoding="utf-8")
+        
+        comp_cmd = ["javac", "-d", temp_dir, "-cp", str(junit_jar), str(java_file_path), str(test_file_path)]
+        comp_result = subprocess.run(comp_cmd, capture_output=True, text=True)
+        if comp_result.returncode != 0:
+            return f"Test Compilation Error:\n{comp_result.stderr}"
+
+        run_cmd = ["java", "-jar", str(junit_jar), "-cp", temp_dir, "--scan-classpath"]
+        run_result = subprocess.run(run_cmd, capture_output=True, text=True)
+        if run_result.returncode != 0:
+            return f"Test Execution Error:\n{run_result.stdout}\n{run_result.stderr}"
+        
+        return ""
+
     def _run_analysis_node(self, state: AgentState):
         self.logger.info(
             "Executando nó: RUN %s (Iteração %d)", 
@@ -103,6 +129,11 @@ class BaseCodeReviewAgent(ABC):
             analysis_output = self._run_command(
                 self._build_tool_command(java_file_path, temp_dir, state["tool_config"])
             )
+
+            if state.get("generated_tests") and not self._analysis_has_findings(analysis_output):
+                test_output = self._run_tests(java_file_path, temp_dir, current_code, state["generated_tests"])
+                if test_output:
+                    analysis_output = f"Falhas em testes detectadas:\nO código falhou nos testes gerados. Corrija o código de forma a passar nos testes de regras de negócios mantendo a adequação estática:\n{test_output}".strip()
 
             self._log_analysis_output(analysis_output)
 
@@ -134,10 +165,29 @@ class BaseCodeReviewAgent(ABC):
                 "current_code": state["current_code"],
                 "analysis_output": state["analysis_output"],
                 "tool_display_name": self.tool_display_name,
+                "generated_tests": state.get("generated_tests", ""),
             }
         )
 
-        new_code = self._strip_code_fences(self._collect_llm_content(response))
+        content = self._collect_llm_content(response)
+
+        code_match = re.search(r"<CODE>(.*?)</CODE>", content, re.DOTALL)
+        test_match = re.search(r"<TEST>(.*?)</TEST>", content, re.DOTALL)
+
+        if code_match:
+            new_code = self._strip_code_fences(code_match.group(1))
+        else:
+            new_code = self._strip_code_fences(content)
+            # Remove possible dangling test section if the LLM hallucinated the tags
+            if "<TEST>" in new_code:
+                new_code = new_code.split("<TEST>")[0].strip()
+
+        new_test_code = state.get("generated_tests", "")
+        if test_match:
+            new_test_code = self._strip_code_fences(test_match.group(1))
+            self.logger.info("O agente de correção alterou também a classe de testes.")
+            indented_test = "\n".join(f"      | {line}" for line in new_test_code.splitlines())
+            self.logger.info("Testes atualizados:\n\033[92m%s\033[0m", indented_test)
 
         new_history = state.get("fixes_history", []) + [
             {
@@ -147,7 +197,7 @@ class BaseCodeReviewAgent(ABC):
             }
         ]
 
-        return {"current_code": new_code, "fixes_history": new_history}
+        return {"current_code": new_code, "generated_tests": new_test_code, "fixes_history": new_history}
 
     def _generate_report_node(self, state: AgentState):
         self.logger.info("Executando nó: GENERATE REPORT")
@@ -276,6 +326,7 @@ class BaseCodeReviewAgent(ABC):
         original_code: str,
         max_iterations: int = 3,
         suppress_output: bool = False,
+        generated_tests: str = "",
     ) -> AgentState:
         initial_state = AgentState(
             pr_description=pr_description,
@@ -289,6 +340,7 @@ class BaseCodeReviewAgent(ABC):
             final_report="",
             tool_config="",
             suppress_output=suppress_output,
+            generated_tests=generated_tests,
         )
         return self.app.invoke(initial_state)
 

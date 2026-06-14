@@ -64,7 +64,7 @@ class SpotBugsAgent(BaseCodeReviewAgent):
             self.logger.debug("Compilando %s para análise via SpotBugs", java_file_path.name)
             
             # 1. Compilar o código Java para extrair o Bytecode (.class)
-            compile_cmd = ["javac", str(java_file_path)]
+            compile_cmd = ["javac", "-d", temp_dir, str(java_file_path)]
             comp_result = subprocess.run(compile_cmd, capture_output=True, text=True)
             
             if comp_result.returncode != 0:
@@ -74,6 +74,11 @@ class SpotBugsAgent(BaseCodeReviewAgent):
                 # 2. Executar o SpotBugs no diretório
                 cmd = self._build_tool_command(java_file_path, temp_dir, state.get("tool_config", ""))
                 analysis_output = self._run_command(cmd)
+
+            if state.get("generated_tests") and not self._analysis_has_findings(analysis_output):
+                test_output = self._run_tests(java_file_path, temp_dir, current_code, state["generated_tests"])
+                if test_output:
+                    analysis_output = f"Falhas em testes detectadas:\nO código falhou nos testes gerados. Corrija o código de forma a passar nos testes de regras de negócios mantendo a adequação estática:\n{test_output}".strip()
 
             self._log_analysis_output(analysis_output)
 
@@ -88,13 +93,17 @@ class SpotBugsAgent(BaseCodeReviewAgent):
             "Você é um engenheiro de software especialista em segurança de software e performance.\n"
             "Descrição do PR: {pr_description}\n"
             "Regras de Contribuição: {contributing_md}\n\n"
-            "O agregador (Compilador + SpotBugs) analisou o seguinte código Java e buscou por NullPointers, Race Conditions e Erros Estruturais.\n"
+            "O agregador analisou o seguinte código Java...\n"
             "Código atual:\n```java\n{current_code}\n```\n\n"
-            "Achados do SpotBugs (ou da compilação):\n{analysis_output}\n\n"
-            "Por favor, retorne SOMENTE o código Java corrigido, sem markdown ao redor, para que as vulnerabilidades de concorrência, possíveis quedas de sistema por NullPointer e problemas estruturais sejam sanados."
+            "Testes de regras de negócio (devem continuar passando):\n```java\n{generated_tests}\n```\n\n"
+            "Achados do SpotBugs (ou das falhas no teste):\n{analysis_output}\n\n"
+            "Por favor, retorne o código Java modificado entre tags <CODE> e </CODE>. "
+            "Se for NECESSÁRIO corrigir o teste devido a uma mudança de sintaxe no código principal (ex: renomeio de classe ou variável que o agente reclamou de letra minúscula/maiúscula), retorne TAMBÉM o código do teste corrigido entre tags <TEST> e </TEST>."
         )
 
     def _analysis_has_findings(self, analysis_output: str) -> bool:
+        if "Falhas em testes detectadas:" in analysis_output:
+            return True
         normalized = analysis_output.strip()
         if not normalized:
             return False

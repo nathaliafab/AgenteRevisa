@@ -49,11 +49,15 @@ class PMDAgent(BaseCodeReviewAgent):
             "Regras de Contribuição: {contributing_md}\n\n"
             "O PMD analisou o seguinte código Java...\n"
             "Código atual:\n```java\n{current_code}\n```\n\n"
-            "Achados do PMD:\n{analysis_output}\n\n"
-            "Por favor, retorne SOMENTE o código Java corrigido, sem markdown ao redor, para que os erros do PMD sejam resolvidos."
+            "Testes de regras de negócio (devem continuar passando):\n```java\n{generated_tests}\n```\n\n"
+            "Achados do PMD (ou das falhas no teste):\n{analysis_output}\n\n"
+            "Por favor, retorne o código Java modificado entre tags <CODE> e </CODE>. "
+            "Se for NECESSÁRIO corrigir o teste devido a uma mudança de sintaxe no código principal (ex: renomeio de classe ou variável que o agente reclamou de letra minúscula/maiúscula), retorne TAMBÉM o código do teste corrigido entre tags <TEST> e </TEST>."
         )
 
     def _analysis_has_findings(self, analysis_output: str) -> bool:
+        if "Falhas em testes detectadas:" in analysis_output:
+            return True
         return bool(
             analysis_output.strip()
             and all(marker not in analysis_output for marker in self.no_issue_markers)

@@ -5,6 +5,7 @@ O **AgenteRevisa** é um sistema automatizado de revisão e refatoração de có
 ## Ferramentas Suportadas
 
 O sistema orquestra os seguintes analisadores (sub-agentes):
+- **Test Generation**: Agente proativo executado no início do fluxo que cria testes baseados em regras de negócio com o framework JUnit 5 e garante que as lógicas de negócio não quebrem ao longo da execução dos agentes de review.
 - **PMD**: Focado em detectar más práticas, complexidade ciclomática elevada, código morto e loops ineficientes.
 - **CheckStyle**: Focado em formatação de código, indentação e adesão a regras de estilo (como o *Google Java Style*).
 - **SpotBugs**: Focado em segurança, vulnerabilidades de concorrência (*Thread-Safety*) e problemas lógicos a nível de compilação (ex: `NullPointerException`). *(Faz a auto-instalação da biblioteca no primeiro uso).*
