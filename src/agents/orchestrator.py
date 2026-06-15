@@ -5,7 +5,7 @@ from agents.pmd_agent import PMDAgent
 from agents.checkstyle_agent import CheckStyleAgent
 from agents.spotbugs_agent import SpotBugsAgent
 from agents.test_generation_agent import TestGenerationAgent
-from utils import setup_logger, get_timestamped_output_path
+from utils import setup_logger, get_timestamped_output_path, save_execution_output
 
 class Orchestrator:
     def __init__(self):
@@ -73,11 +73,15 @@ class Orchestrator:
         
         output_dir = Path("output")
         base_file = Path(file_name).stem
-        output_name = f"{base_file}_orchestrator_output.md"
-        output_path = get_timestamped_output_path(output_dir, output_name)
-
-        output_content = f"{final_report}\n\n### Final Code\n\n```java\n{current_code}\n```\n"
-        output_path.write_text(output_content, encoding="utf-8")
+        
+        output_path = save_execution_output(
+            output_dir=output_dir,
+            base_file=base_file,
+            tool_name="orchestrator",
+            report=final_report,
+            current_code=current_code,
+            test_code=generated_tests,
+        )
         self.logger.info("Arquivo de saida gerado em %s", output_path)
 
         return {

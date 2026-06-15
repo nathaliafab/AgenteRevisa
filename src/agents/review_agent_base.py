@@ -9,7 +9,7 @@ from typing import Dict, List, TypedDict
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, StateGraph
-from utils import setup_logger, get_timestamped_output_path
+from utils import setup_logger, get_timestamped_output_path, save_execution_output
 
 
 __all__ = ["AgentState", "BaseCodeReviewAgent", "PromptTemplate"]
@@ -245,13 +245,15 @@ class BaseCodeReviewAgent(ABC):
         output_dir = Path("output")
         base_file = Path(state.get("file_name", "Unknown")).stem
         tool_name = self.tool_display_name.lower().replace(' ', '_')
-        output_name = f"{base_file}_{tool_name}_output.md"
         
-        output_path = get_timestamped_output_path(output_dir, output_name)
-        output_content = (
-            f"{report}\n\n### Final Code\n\n```java\n{state['current_code']}\n```\n"
+        output_path = save_execution_output(
+            output_dir=output_dir,
+            base_file=base_file,
+            tool_name=tool_name,
+            report=report,
+            current_code=state["current_code"],
+            test_code=state.get("generated_tests", ""),
         )
-        output_path.write_text(output_content, encoding="utf-8")
         self.logger.info("Arquivo de saida gerado em %s", output_path)
 
         return {"final_report": report}
