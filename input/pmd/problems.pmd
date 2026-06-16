@@ -52,3 +52,69 @@ Aqui está a sua lista de **15 classes fictícias**, distribuindo os 20 problema
 **14- problema StringInstantiation:** `GeradorDeTokenSessao` é responsável por criar o token JWT do usuário recém-logado e concatena sufixos instanciando novos objetos com `new String("_auth")` de forma totalmente redundante.
 
 **15- problema PreserveStackTrace:** `ComunicadorRabbitMQ` tenta publicar mensagens em uma fila. Ao dar erro de rede (`IOException`), ele lança uma `MensagemNaoEnviadaException` customizada no catch, mas omite a exceção original, apagando o rastro de onde o erro de IO realmente aconteceu.
+
+
+-------
+
+## Ajustes de acordo com real outputs:
+(Algumas classes foram removidas por conterem problemas que são de outras rulesets que nós não usamos, portanto, o PMD não reportaria esses problemas)
+
+1. AnalisadorDeLogs.java:
+- UnusedPrivateMethod
+- ControlStatementBraces
+
+2. AvaliadorDeCredito.java (removido):
+- UseLocaleWithCaseConversions
+
+3. BuscadorDeClientes.java:
+- ReturnEmptyCollectionRatherThanNull
+- LiteralsFirstInComparisons
+
+4. CalculadoraDeImpostos.java:
+- UnusedLocalVariable
+
+5. ClienteAPIExterno.java:
+- AvoidUsingHardCodedIP
+
+6. ComunicadorRabbitMQ.java:
+- PreserveStackTrace
+- UnusedFormalParameter
+
+7. ConfiguracoesGlobais.java (removido):
+Nada
+
+8. ExportadorBancoDeDados.java:
+- CloseResource
+
+9. FormatadorDeMensagens.java (removido):
+Nada
+
+10. GeradorDeTokenSessao.java (removido):
+Nada
+
+11. GerenciadorSistemaTotal.java:
+- UnusedPrivateField
+- SingularField
+- UnusedLocalVariable
+
+12. ProcessadorDeRelatorios.java:
+- CompareObjectsWithEquals
+- UseEqualsToCompareStrings
+
+13. ProcessadorDeTextos (adicionado):
+- NoPackage
+- UselessPureMethodCall
+- UseLocaleWithCaseConversions
+- CompareObjectsWithEquals
+- UseEqualsToCompareStrings
+
+14. SincronizadorDeArquivos.java:
+- UnusedPrivateField
+- EmptyCatchBlock
+- UnusedLocalVariable
+
+15. StatusDoPedidoConstantes.java:
+- ConstantsInInterface
+
+16. ValidadorDeSenha.java (removido):
+Nada
