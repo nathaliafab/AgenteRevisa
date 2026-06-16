@@ -20,11 +20,10 @@ AGENT_MAP = {
     "pmd": PMDAgent,
     "checkstyle": CheckStyleAgent,
     "spotbugs": SpotBugsAgent,
-    "all": Orchestrator,
 }
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-INPUT_DIR = PROJECT_ROOT / "input"
+DEFAULT_INPUT_DIR = PROJECT_ROOT / "input" 
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -33,9 +32,15 @@ def parse_arguments() -> argparse.Namespace:
 
     parser.add_argument(
         "--tool",
-        choices=list(AGENT_MAP.keys()),
+        choices=list(AGENT_MAP.keys()) + ["all"],
         default="all",
         help="Analysis tool to be used (default: all)",
+    )
+
+    parser.add_argument(
+        "--orchestrator",
+        action="store_true",
+        help="Wraps the selected tool in the Orchestrator (implied if --tool=all)",
     )
 
     parser.add_argument(
@@ -45,11 +50,18 @@ def parse_arguments() -> argparse.Namespace:
         help="Maximum number of iterations the agent can perform (default: 3)",
     )
 
+    parser.add_argument(
+        "--folder",
+        type=str,
+        default="",
+        help="Subdirectory inside input/ to look for files (e.g., pmd, checkstyle)",
+    )
+
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--all",
         action="store_true",
-        help="Process all .java files in the input/ directory",
+        help="Process all .java files in the target directory",
     )
     group.add_argument(
         "--file",
@@ -60,26 +72,42 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _build_agent(agent_name: str):
+def _build_agent(args: argparse.Namespace):
     """Factory function to build the selected analysis agent."""
-    normalized = agent_name.strip().lower()
-    agent_class = AGENT_MAP.get(normalized)
+    tool = args.tool.strip().lower()
+    
+    # Se a tool for "all" OU a flag --orchestrator foi passada, o Orchestrator assume
+    use_orchestrator = args.orchestrator or tool == "all"
 
+    # Se pediu "all", retorna o Orchestrator padrão (que internamente carrega todas)
+    if tool == "all":
+        return Orchestrator()
+
+    # Busca a classe da tool específica
+    agent_class = AGENT_MAP.get(tool)
     if not agent_class:
-        valid_agents = ", ".join(f"'{k}'" for k in AGENT_MAP.keys())
-        raise ValueError(f"Invalid agent: '{agent_name}'. Use {valid_agents}.")
+        valid_agents = ", ".join(f"'{k}'" for k in list(AGENT_MAP.keys()) + ["all"])
+        raise ValueError(f"Invalid agent: '{tool}'. Use {valid_agents}.")
 
-    return agent_class()
+    single_agent = agent_class() # type: ignore
+
+    if use_orchestrator:
+        return Orchestrator(agents=[single_agent])
+    
+    return single_agent
 
 
 def get_target_files(args: argparse.Namespace) -> list[Path]:
     """Resolves which files to process based on CLI arguments."""
-    if not INPUT_DIR.exists() or not INPUT_DIR.is_dir():
-        logger.error(f"Input directory not found: {INPUT_DIR}")
+    # Resolve o diretório alvo: input/ ou input/sua_subpasta
+    target_dir = DEFAULT_INPUT_DIR / args.folder if args.folder else DEFAULT_INPUT_DIR
+
+    if not target_dir.exists() or not target_dir.is_dir():
+        logger.error(f"Input directory not found: {target_dir}")
         sys.exit(1)
 
     if args.all:
-        return list(INPUT_DIR.glob("*.java"))
+        return list(target_dir.glob("*.java"))
 
     if args.file:
         files = []
@@ -88,7 +116,7 @@ def get_target_files(args: argparse.Namespace) -> list[Path]:
             if not name.endswith(".java"):
                 name += ".java"
 
-            file_path = INPUT_DIR / name
+            file_path = target_dir / name
             if file_path.exists() and file_path.is_file():
                 files.append(file_path)
             else:
@@ -106,7 +134,7 @@ def main():
         logger.warning("No valid Java files found to process. Exiting.")
         sys.exit(0)
 
-    agent = _build_agent(args.tool)
+    agent = _build_agent(args)
 
     logger.info("Starting agent execution")
     logger.info("Agent: %s", agent.__class__.__name__)
@@ -138,7 +166,6 @@ def main():
 
         except Exception as e:
             logger.error(f"Failed to process {file_path.name}: {e}")
-
 
 if __name__ == "__main__":
     main()
