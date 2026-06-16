@@ -46,30 +46,42 @@ Para conseguir uma chave válida da API do Google Gemini, basta acessar o link a
 O orquestrador principal é o script `src/main.py`. Ao subir o container, o comando de help roda automaticamente e em seguida um terminal interativo é aberto.
 
 Para iniciar:
+
 ```bash
 docker compose build
 docker compose run --rm agente-revisa
 ```
 
-Para rodar as análises, é **obrigatório** informar quais arquivos devem ser processados utilizando a flag `--all` (para todos os arquivos dentro de `input/`) ou `--file` (para arquivos específicos).
+Para rodar as análises, é **obrigatório** informar quais arquivos devem ser processados utilizando a flag `--all` ou `--file`. Por padrão, o script busca os arquivos diretamente na raiz do diretório `input/`. Caso seus arquivos estejam divididos em subpastas, utilize o argumento `--folder`.
 
-Exemplos de uso:
+### Parâmetros Principais
+
+* `--tool`: Ferramenta de análise específica (`pmd`, `checkstyle`, `spotbugs` ou `all`).
+* `--folder`: Especifica uma subpasta dentro de `input/` para buscar os arquivos (ex: `pmd`, `checkstyle`).
+* `--all`: Processa todos os arquivos `.java` encontrados no diretório alvo.
+* `--file`: Uma lista de arquivos específicos separados por vírgula.
+* `--orchestrator`: Força o encapsulamento de uma ferramenta unitária dentro do fluxo do orquestrador.
+
+### Exemplos de uso:
 
 ```bash
-# Executar pipeline de revisão completo com todos os agentes em TODOS os arquivos
+# Executar pipeline de revisão completo com todos os agentes em TODOS os arquivos na raiz de input/
 python src/main.py --all
 
 # Executar a pipeline completa em um arquivo específico
 python src/main.py --file userManager.java
 
-# Executar a pipeline de revisão baseada na ferramenta PMD em todos os arquivos
-python src/main.py --tool pmd --all
+# Executar o agente PMD em arquivos contidos especificamente na subpasta input/pmd/
+python src/main.py --tool pmd --folder pmd --all
 
-# Executar a pipeline observando estritamente regras de sintaxe CheckStyle
-python src/main.py --tool checkstyle --all
+# Executar de forma orquestrada o agente PMD especificando a subpasta input/pmd/
+python src/main.py --orchestrator --tool pmd --folder pmd --all
 
-# Executar a pipeline com validação SpotBugs de Memory e Bytecode apenas em arquivos específicos
-python src/main.py --tool spotbugs --file arquivo1.java,arquivo2.java
+# Executar a pipeline observando regras do CheckStyle em arquivos dentro de input/checkstyle/
+python src/main.py --tool checkstyle --folder checkstyle --all
+
+# Executar a pipeline com validação SpotBugs em arquivos específicos dentro de uma subpasta
+python src/main.py --tool spotbugs --folder spotbugs --file arquivo1.java,arquivo2.java
 
 ```
 

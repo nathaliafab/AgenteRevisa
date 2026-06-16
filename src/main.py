@@ -23,7 +23,7 @@ AGENT_MAP = {
 }
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-INPUT_DIR = PROJECT_ROOT / "input" / "pmd"
+DEFAULT_INPUT_DIR = PROJECT_ROOT / "input" 
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -50,11 +50,18 @@ def parse_arguments() -> argparse.Namespace:
         help="Maximum number of iterations the agent can perform (default: 3)",
     )
 
+    parser.add_argument(
+        "--folder",
+        type=str,
+        default="",
+        help="Subdirectory inside input/ to look for files (e.g., pmd, checkstyle)",
+    )
+
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--all",
         action="store_true",
-        help="Process all .java files in the input/ directory",
+        help="Process all .java files in the target directory",
     )
     group.add_argument(
         "--file",
@@ -92,12 +99,15 @@ def _build_agent(args: argparse.Namespace):
 
 def get_target_files(args: argparse.Namespace) -> list[Path]:
     """Resolves which files to process based on CLI arguments."""
-    if not INPUT_DIR.exists() or not INPUT_DIR.is_dir():
-        logger.error(f"Input directory not found: {INPUT_DIR}")
+    # Resolve o diretório alvo: input/ ou input/sua_subpasta
+    target_dir = DEFAULT_INPUT_DIR / args.folder if args.folder else DEFAULT_INPUT_DIR
+
+    if not target_dir.exists() or not target_dir.is_dir():
+        logger.error(f"Input directory not found: {target_dir}")
         sys.exit(1)
 
     if args.all:
-        return list(INPUT_DIR.glob("*.java"))
+        return list(target_dir.glob("*.java"))
 
     if args.file:
         files = []
@@ -106,7 +116,7 @@ def get_target_files(args: argparse.Namespace) -> list[Path]:
             if not name.endswith(".java"):
                 name += ".java"
 
-            file_path = INPUT_DIR / name
+            file_path = target_dir / name
             if file_path.exists() and file_path.is_file():
                 files.append(file_path)
             else:
