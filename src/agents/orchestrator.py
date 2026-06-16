@@ -1,23 +1,31 @@
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 
 from agents.pmd_agent import PMDAgent
 from agents.checkstyle_agent import CheckStyleAgent
 from agents.spotbugs_agent import SpotBugsAgent
 from agents.test_generation_agent import TestGenerationAgent
-from utils import setup_logger, get_timestamped_output_path, save_execution_output
+from utils import setup_logger, save_execution_output
 
 class Orchestrator:
-    def __init__(self):
+    def __init__(self, agents: Optional[List[Any]] = None):
         self.logger = setup_logger(self.__class__.__name__)
-        self.tool_display_name = "Orchestrator"
         self.actual_model = "orchestrator"
         self.test_agent = TestGenerationAgent()
-        self.agents = [
-            SpotBugsAgent(),
-            PMDAgent(),
-            CheckStyleAgent(),
-        ]
+        
+        if agents:
+            self.agents = agents
+            if len(agents) == 1:
+                self.tool_display_name = f"Orchestrator ({agents[0].__class__.__name__})"
+            else:
+                self.tool_display_name = "Orchestrator (Custom Tools)"
+        else:
+            self.agents = [
+                SpotBugsAgent(),
+                PMDAgent(),
+                CheckStyleAgent(),
+            ]
+            self.tool_display_name = "Orchestrator (All Tools)"
 
     def run(
         self,
@@ -35,7 +43,7 @@ class Orchestrator:
         max_cycles = 5
         cycle = 0
 
-        self.logger.info("Starting integration of all agents")
+        self.logger.info("Starting integration of agents")
         self.logger.info("Max cycles: %d", max_cycles)
 
         final_report = "### Orchestrator Evaluation Report\n\n"
@@ -74,10 +82,12 @@ class Orchestrator:
         output_dir = Path("output")
         base_file = Path(file_name).stem
         
+        tool_output_name = "orchestrator_all" if len(self.agents) > 1 else f"orchestrator_{self.agents[0].__class__.__name__.lower()}"
+        
         output_path = save_execution_output(
             output_dir=output_dir,
             base_file=base_file,
-            tool_name="orchestrator",
+            tool_name=tool_output_name,
             report=final_report,
             current_code=current_code,
             test_code=generated_tests,
