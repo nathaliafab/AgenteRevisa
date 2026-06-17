@@ -1,4 +1,10 @@
-Primeiro, selecionei **15 problemas diferentes** (regras do SpotBugs) que são muito comuns e abrangem categorias como Correção (Bad Practice/Correctness), Performance, Concorrência e Código Malicioso:
+## Criação do dataset
+
+O dataset foi criado usando LLMs, abaixo segue detalhes de como foi esse processo
+
+### Parte 1
+
+Primeiro, foram elencados **15 problemas diferentes** (regras do SpotBugs) que são muito comuns e abrangem categorias como Correção (Bad Practice/Correctness), Performance, Concorrência e Código Malicioso:
 
 1. **NP_ALWAYS_NULL**: Desreferenciamento de ponteiro nulo garantido (gera um NullPointerException em tempo de execução).
 2. **IL_INFINITE_LOOP**: Laço de repetição evidente cuja condição de parada nunca é atingida (loop infinito).
@@ -17,7 +23,9 @@ Primeiro, selecionei **15 problemas diferentes** (regras do SpotBugs) que são m
 15. **DL_SYNCHRONIZATION_ON_SHARED_CONSTANT**: Realizar controle de concorrência (`synchronized`) travando em literais de String ou constantes que são compartilhadas globalmente na JVM.
 16. **BC_IMPOSSIBLE_CAST**: Realizar um cast forçado em tempo de compilação entre tipos de dados que são comprovadamente incompatíveis em tempo de execução.
 
-Aqui está a sua lista de **10 classes fictícias**, distribuindo os 16 problemas sem nenhuma repetição:
+### Parte 2
+
+Em seguida, foram criadas usando LLMs **10 classes fictícias**, distribuindo os 16 problemas sem nenhuma repetição:
 
 **1- problema NP_ALWAYS_NULL e IL_INFINITE_LOOP:** `ProcessadorRelatorio` tenta gerar um relatório financeiro usando um laço `while` cuja condição de parada nunca muda. Para piorar, dentro do bloco ela tenta acessar métodos de uma String inicializada explicitamente como `null`.
 
@@ -39,9 +47,7 @@ Aqui está a sua lista de **10 classes fictícias**, distribuindo os 16 problema
 
 **10- problema BC_IMPOSSIBLE_CAST:** `ConversorFormato` recebe coleções genéricas de dados da aplicação e, sem realizar nenhuma checagem prévia com `instanceof`, tenta forçar um cast direto para a classe concreta `ArrayList`, gerando quebras inevitáveis.
 
----
-
-## Ajustes de acordo com real outputs:
+### Distribuição dos problemas nas classes
 
 (Todas as 10 classes foram mantidas pois simulam o escopo padrão de detecção e as regras de bytecode analisadas nativamente pelo SpotBugs)
 
@@ -90,3 +96,32 @@ Aqui está a sua lista de **10 classes fictícias**, distribuindo os 16 problema
 10. SincronizadorNotificacoes.java:
 
     * DL_SYNCHRONIZATION_ON_SHARED_CONSTANT
+
+## Avaliação das Correções do Agente (SpotBugs)
+
+`OBS: Os outputs completos do agente para cada classe estão na pasta outputs`
+
+O agente se saiu bem em corrigir os erros do Spotbugs mas modificou o sentido do código em algumas ocasiões, adicionando novas funcionalidades, o que pode consistir em um overengineering. Algumas dessas alteraçãoes podem ser benignas, mas a intenção do agente era manter o código mais próximos do original o possível. Além disso ele causou alguns problemas de formatação desnecessários, como desrespeitar casings. 
+
+Em relação a criação de testes, eles são satisfatórios como testes iniciais, mas não garantem 100% de coverage por exemplo, isso poderia ser mudado tornando o agente de testes mais complexo, talvez rodando uma ferramenta de coverage.
+
+*   **AutenticadorSimples:** Nenhum problema
+
+*   **CalculadoraEstatistica:**: Adicionou do nada uma trava com `if (valorMaximo <= 0) throw new IllegalArgumentException(...)`. Quebrou a retrocompatibilidade. Antes se alguém mandasse 0 ele só devolveria 0. Agora lança exceção em runtime e derruba a aplicação.
+
+*   **ContadorAcessos:**: Nenhum problema
+
+*   **ConversorFormato:**: Nenhum problema
+
+*   **ExportadorDados (ExportadorDeDados):**: Nenhum problema
+
+*   **GerenciadorEstoque:**: Nenhum problema
+
+*   **HistoricoAcessosDAO:**:  Tirou os parâmetros fixos de usuário e forçou o código a variáveis de ambiente. Isso é mais profissional para um código em produção, mas quebra retrocompatibilidade.
+
+*   **PerfilUsuario:**: Nenhum problema
+
+*   **ProcessadorRelatorio (ProcessadorDeRelatorios):**: Nenhum problema
+
+*   **SincronizadorNotificacoes:**: Nenhum problema
+
