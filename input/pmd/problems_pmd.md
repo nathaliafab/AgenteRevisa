@@ -1,3 +1,5 @@
+## Saída do LLM - Geração de classes
+
 Primeiro, selecionei **20 problemas diferentes** (regras do PMD) que são muito comuns e abrangem categorias como Boas Práticas, Design, Performance e Tratamento de Erros:
 
 1. **EmptyCatchBlock**: Bloco `catch` vazio (engole a exceção).
@@ -56,12 +58,14 @@ Aqui está a sua lista de **15 classes fictícias**, distribuindo os 20 problema
 
 -------
 
-## Ajustes de acordo com real outputs:
+## Ajustes e avaliação de acordo com real outputs
+
 (Algumas classes foram removidas por conterem problemas que são de outras rulesets que nós não usamos, portanto, o PMD não reportaria esses problemas)
 
 1. AnalisadorDeLogs.java:
 - UnusedPrivateMethod
 - ControlStatementBraces
+
 A suíte de testes é condizente com o comportamento esperado.
 O LLM resolveu bem todos os problemas em uma iteração, sem acrescentar outros problemas ou mudar o comportamento.
 
@@ -71,22 +75,26 @@ O LLM resolveu bem todos os problemas em uma iteração, sem acrescentar outros 
 3. BuscadorDeClientes.java:
 - ReturnEmptyCollectionRatherThanNull
 - LiteralsFirstInComparisons
+
 A suíte de testes é condizente com o comportamento esperado.
 O LLM resolveu bem todos os problemas em uma iteração, sem acrescentar outros problemas ou mudar o comportamento.
 
 4. CalculadoraDeImpostos.java:
 - UnusedLocalVariable
+
 A suíte de testes é condizente com o comportamento esperado.
 O LLM resolveu bem todos os problemas em uma iteração, sem acrescentar outros problemas ou mudar o comportamento.
 
 5. ClienteAPIExterno.java:
 - AvoidUsingHardCodedIP
+
 Fez um único teste que é passável independente da alteração feita no IP.
 A alteração feita pelo LLM conserta o problema, mas pode quebrar o código já existente se não for passada o valor por fora. Então, outras partes do código também precisariam ser alteradas.
 
 6. ComunicadorRabbitMQ.java:
 - PreserveStackTrace
 - UnusedFormalParameter
+
 A suíte de testes é condizente com o comportamento esperado.
 O LLM resolveu bem todos os problemas em uma iteração, sem acrescentar outros problemas ou mudar o comportamento.
 
@@ -96,6 +104,7 @@ Nada
 8. ExportadorBancoDeDados.java:
 - CloseResource
 Poderia ter mais testes.
+
 O LLM resolveu o problema, mas tbm fez uma pequena refatoração não necessária e também explicitou tipos de exceção, que não foram coisas que o PMD alertou sobre.
 
 9. FormatadorDeMensagens.java (removido):
@@ -108,11 +117,13 @@ Nada
 - UnusedPrivateField
 - SingularField
 - UnusedLocalVariable
+
 Ele conseguiu consertar os problemas, mas introduziu outros em diferentes iterações (UnnecessaryImport, UnnecessaryReturn, EmptyControlStatement). O LLM em alguns trechos não colocou o código inteiro, deixando comentários no lugar ("// Lógica de ... aqui"). Ao final de tudo, foi resolvido, mas acabou criando classes novas no processo, que pode não ser do interesse do desenvolvedor.
 
 12. ProcessadorDeRelatorios.java:
 - CompareObjectsWithEquals
 - UseEqualsToCompareStrings
+
 Os problemas foram resolvidos, mas o LLM também refatorou partes que não precisavam de alterações.
 
 13. ProcessadorDeTextos (adicionado):
@@ -121,16 +132,19 @@ Os problemas foram resolvidos, mas o LLM também refatorou partes que não preci
 - UseLocaleWithCaseConversions
 - CompareObjectsWithEquals
 - UseEqualsToCompareStrings
+
 Os problemas foram resolvidos na primeira iteração. O comportamento em si mudou, já que havia um bug na implementação.
 
 14. SincronizadorDeArquivos.java:
 - UnusedPrivateField
 - EmptyCatchBlock
 - UnusedLocalVariable
+
 Os problemas foram resolvidos na primeira iteração, deixando o restante do código intacto.
 
 15. StatusDoPedidoConstantes.java:
 - ConstantsInInterface
+
 Ele transformou a interface numa classe e criou um construtor privado. Me parece gambiarra, mas o exemplo em si é pequeno, é difícil contornar o problema sem fazer isso.
 
 16. ValidadorDeSenha.java (removido):
